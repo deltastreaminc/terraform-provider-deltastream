@@ -11,10 +11,12 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/sethvargo/go-retry"
 
 	gods "github.com/deltastreaminc/go-deltastream"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 )
 
 var _ resource.Resource = &StoreResource{}
@@ -58,10 +60,12 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"name": schema.StringAttribute{
 				Description: "Name of the Store",
 				Required:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"type": schema.StringAttribute{
 				Description: "Store type. Supported types are: KAFKA",
 				Required:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"properties": schema.SingleNestedAttribute{
 				Description: "Store properties",
@@ -70,6 +74,7 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 					"uris": schema.StringAttribute{
 						Description: "URIs of the Store",
 						Required:    true,
+						Validators:  []validator.String{util.UrlsValidator{}},
 					},
 					"access_region": schema.StringAttribute{
 						Description: "Access region of the Store",
@@ -94,6 +99,7 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 					"kafka_msk_aws_region": schema.StringAttribute{
 						Description: "MSK AWS region",
 						Optional:    true,
+						Validators:  util.IdentifierValidators,
 					},
 					"tls_disabled": schema.BoolAttribute{
 						Description: "Disable TLS",
@@ -109,6 +115,7 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Description: "Owning role of the Store",
 				Optional:    true,
 				Computed:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"state": schema.StringAttribute{
 				Description: "State of the Store",

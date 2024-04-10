@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	gods "github.com/deltastreaminc/go-deltastream"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 )
 
 var _ resource.Resource = &DatabaseResource{}
@@ -42,14 +43,16 @@ func (d *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 			"name": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-			},
-			"is_default": schema.BoolAttribute{
-				Description: "Is the Database the default",
-				Computed:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the Database",
 				Optional:    true,
+				Computed:    true,
+				Validators:  util.IdentifierValidators,
+			},
+			"is_default": schema.BoolAttribute{
+				Description: "Is the Database the default",
 				Computed:    true,
 			},
 			"created_at": schema.StringAttribute{

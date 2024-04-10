@@ -46,9 +46,9 @@ resource "deltastream_relation" "pageviews_6" {
   dsql = "CREATE STREAM PAGEVIEWS_6 (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');"
 }
 
-# resource "deltastream_query" "query1" {
-#   name = "query1"
-#   relations = [deltastream_stream.pageviews.name, deltastream_stream.pageviews_6.name]
+resource "deltastream_query" "query1" {
+  name = "query1"
+  relations = [deltastream_stream.pageviews.name, deltastream_stream.pageviews_6.name]
 
-#   sql = "INSERT INTO pageviews_6 SELECT * from pageviews;"
-# }
+  sql = "INSERT INTO pageviews_6 SELECT * from pageviews;"
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/sethvargo/go-retry"
 
 	gods "github.com/deltastreaminc/go-deltastream"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 )
 
 var _ resource.Resource = &RelationResource{}
@@ -53,18 +54,22 @@ func (d *RelationResource) Schema(ctx context.Context, req resource.SchemaReques
 			"name": schema.StringAttribute{
 				Description: "Name of the Relation",
 				Required:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"database": schema.StringAttribute{
 				Description: "Name of the database containing the relation",
 				Required:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"schema": schema.StringAttribute{
 				Description: "Name of the database schema containing the relation",
 				Required:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"store": schema.StringAttribute{
 				Description: "Name of the store backing the relation topic",
 				Required:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"dsql": schema.StringAttribute{
 				Description: "relation definition in DSQL format",
@@ -82,6 +87,7 @@ func (d *RelationResource) Schema(ctx context.Context, req resource.SchemaReques
 				Description: "Owning role of the Relation",
 				Optional:    true,
 				Computed:    true,
+				Validators:  util.IdentifierValidators,
 			},
 			"updated_at": schema.StringAttribute{
 				Description: "Last updated date of the Relation",

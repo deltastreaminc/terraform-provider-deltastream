@@ -1,6 +1,6 @@
 resource "deltastream_relation" "pageviews" {
   name = "pageviews"
-  database = deltastream_database.analytics.name
+  database = deltastream_database.example.name
   schema = "public"
   store = deltastream_store.default.name
   

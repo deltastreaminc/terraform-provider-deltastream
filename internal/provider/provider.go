@@ -167,6 +167,7 @@ func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.R
 		NewDatabaseResource,
 		NewStoreResource,
 		NewRelationResource,
+		NewQueryResource,
 	}
 }
 
