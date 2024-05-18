@@ -1,4 +1,5 @@
-default: testacc
+default: fmt doc
+	go install .
 
 .PHONY: fmt
 fmt:
@@ -10,5 +11,5 @@ doc:
 
 .PHONY: testacc
 testacc:
-	TF_ACC=1 go test -v ./... -v $(TESTARGS) -timeout 120m
+	TF_LOG=info TF_ACC=1  DELTASTREAM_CRED_FILE=$(PWD)/test-env.yaml go test -v ./... -v $(TESTARGS) -timeout 120m
 

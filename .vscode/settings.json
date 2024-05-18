@@ -1,0 +1,6 @@
+{
+    "go.testEnvVars": {
+        "DELTASTREAM_CRED_FILE": "${workspaceFolder}/test-env.yaml",
+    },
+    "go.testTimeout": "15m"
+}

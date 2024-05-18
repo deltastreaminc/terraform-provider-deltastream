@@ -12,8 +12,8 @@ import (
 )
 
 var IdentifierValidators = []validator.String{stringvalidator.RegexMatches(
-	regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_@]*$`),
-	"must contain only alphanumeric characters, _ and @",
+	regexp.MustCompile(`^[a-zA-Z0-9]([ ]?[a-zA-Z0-9_\-])*$`),
+	"must contain only alphanumeric characters, space, - and _",
 )}
 
 type UrlsValidator struct{}

@@ -1,0 +1,36 @@
+name: PR test
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+
+jobs:
+  build:
+    name: pr-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        with:
+          # Allow goreleaser to access older tag information.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build
+        run: make
+
+      - name: Setup test env
+        run: |
+          cat <<EOF> test-env.yaml
+            ${{ secrets.PROVIDER_ACC_TEST_ENV }}
+          EOF
+
+      - name: Acceptance Test
+        run: make testacc

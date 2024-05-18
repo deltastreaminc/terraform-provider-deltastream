@@ -14,17 +14,22 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"k8s.io/utils/ptr"
 
 	gods "github.com/deltastreaminc/go-deltastream"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/database"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/region"
+	dsschema "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/secret"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/store"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
 var _ provider.Provider = &DeltaStreamProvider{}
-var _ provider.ProviderWithFunctions = &DeltaStreamProvider{}
 
 // DeltaStreamProvider defines the provider implementation.
 type DeltaStreamProvider struct {
@@ -34,11 +39,11 @@ type DeltaStreamProvider struct {
 
 // DeltaStreamProviderModel describes the provider data model.
 type DeltaStreamProviderModel struct {
-	APIKey             string  `tfsdk:"api_key"`
+	APIKey             *string `tfsdk:"api_key"`
 	Server             *string `tfsdk:"server"`
 	InsecureSkipVerify *bool   `tfsdk:"insecure_skip_verify"`
-	Organization       string  `tfsdk:"organization"`
-	Role               string  `tfsdk:"role"`
+	Organization       *string `tfsdk:"organization"`
+	Role               *string `tfsdk:"role"`
 }
 
 func (p *DeltaStreamProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -46,15 +51,15 @@ func (p *DeltaStreamProvider) Metadata(ctx context.Context, req provider.Metadat
 	resp.Version = p.version
 }
 
-func (p *DeltaStreamProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
-	resp.Schema = schema.Schema{
+func providerSchema() schema.Schema {
+	return schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
-				Description: "API key",
-				Required:    true,
+				Description: "API key. Can also be set via the DELTASTREAM_API_KEY environment variable",
+				Optional:    true,
 			},
 			"server": schema.StringAttribute{
-				Description: "Server",
+				Description: "Server. Can also be set via the DELTASTREAM_SERVER environment variable. Default: https://api.deltastream.io/v2",
 				Optional:    true,
 			},
 			"insecure_skip_verify": schema.BoolAttribute{
@@ -62,20 +67,19 @@ func (p *DeltaStreamProvider) Schema(ctx context.Context, req provider.SchemaReq
 				Optional:    true,
 			},
 			"organization": schema.StringAttribute{
-				Description: "DeltaStream organization Name or ID",
-				Required:    true,
+				Description: "DeltaStream organization Name or ID. Can also be set via the DELTASTREAM_ORGANIZATION environment variable.",
+				Optional:    true,
 			},
 			"role": schema.StringAttribute{
-				Description: "DeltaStream role to use for managing resources and queries",
-				Required:    true,
+				Description: "DeltaStream role to use for managing resources and queries. Can also be set via the DELTASTREAM_ROLE environment variable. Default: sysadmin",
+				Optional:    true,
 			},
 		},
 	}
 }
 
-type DeltaStreamProviderCfg struct {
-	Conn *sql.Conn
-	Role string
+func (p *DeltaStreamProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+	resp.Schema = providerSchema()
 }
 
 type debugTransport struct {
@@ -105,18 +109,34 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 
+	if osEnv := os.Getenv("DELTASTREAM_ORGANIZATION"); data.Organization == nil && osEnv != "" {
+		data.Organization = ptr.To(osEnv)
+	}
+	if roleEnv := os.Getenv("DELTASTREAM_ROLE"); data.Role == nil && roleEnv != "" {
+		data.Role = ptr.To(roleEnv)
+	}
+	if apiKeyEnv := os.Getenv("DELTASTREAM_API_KEY"); data.APIKey == nil && apiKeyEnv != "" {
+		data.APIKey = ptr.To(apiKeyEnv)
+	}
+	if debug := os.Getenv("DELTASTREAM_DEBUG"); data.InsecureSkipVerify == nil && debug != "" {
+		data.InsecureSkipVerify = ptr.To(true)
+	}
+
 	server := "https://api.deltastream.io/v2"
-	if os.Getenv("DS_SERVER") != "" {
-		server = os.Getenv("DS_SERVER")
+	if os.Getenv("DELTASTREAM_SERVER") != "" {
+		server = os.Getenv("DELTASTREAM_SERVER")
 	}
 	if data.Server != nil {
 		server = *data.Server
 	}
 
-	connOptions := []gods.ConnectionOption{gods.WithStaticToken(data.APIKey)}
+	if data.APIKey == nil {
+		resp.Diagnostics.AddError("API key is required", "")
+		return
+	}
+	connOptions := []gods.ConnectionOption{gods.WithStaticToken(*data.APIKey)}
 
 	if data.InsecureSkipVerify != nil && *data.InsecureSkipVerify {
-
 		httpClient := &http.Client{
 			Transport: &debugTransport{
 				r: &http.Transport{
@@ -146,37 +166,61 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ORGANIZATION "%s";`, data.Organization)); err != nil {
+	if data.Organization == nil {
+		resp.Diagnostics.AddError("Organization is required", "")
+		return
+	}
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ORGANIZATION "%s";`, *data.Organization)); err != nil {
 		resp.Diagnostics.AddError("Failed to set organization", err.Error())
 		return
 	}
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ROLE "%s";`, data.Role)); err != nil {
+	if data.Role == nil {
+		resp.Diagnostics.AddError("Role is required", "")
+		return
+	}
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ROLE "%s";`, *data.Role)); err != nil {
 		resp.Diagnostics.AddError("Failed to set role", err.Error())
 		return
 	}
 
-	resp.ResourceData = &DeltaStreamProviderCfg{
+	resp.ResourceData = &config.DeltaStreamProviderCfg{
 		Conn: conn,
-		Role: data.Role,
+		Role: *data.Role,
+	}
+	resp.DataSourceData = &config.DeltaStreamProviderCfg{
+		Conn: conn,
+		Role: *data.Role,
 	}
 }
 
 func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewDatabaseResource,
-		NewStoreResource,
-		NewRelationResource,
-		NewQueryResource,
+		database.NewDatabaseResource,
+		dsschema.NewSchemaResource,
+		store.NewStoreResource,
+		secret.NewSecretResource,
 	}
 }
 
 func (p *DeltaStreamProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
-}
+	return []func() datasource.DataSource{
+		database.NewDatabaseDataSource,
+		database.NewDatabasesDataSource,
 
-func (p *DeltaStreamProvider) Functions(ctx context.Context) []func() function.Function {
-	return []func() function.Function{}
+		dsschema.NewSchemaDataSource,
+		dsschema.NewSchemasDataSource,
+
+		region.NewRegionDataSource,
+		region.NewSecretsDataSources,
+
+		store.NewStoreDataSource,
+		store.NewStoresDataSource,
+		store.NewEntitiesDataSource,
+
+		secret.NewSecretDataSource,
+		secret.NewSecretsDataSources,
+	}
 }
 
 func New(version string) func() provider.Provider {
