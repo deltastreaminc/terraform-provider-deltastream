@@ -28,7 +28,10 @@ jobs:
           cache: true
 
       - name: Setup test env
-        run: echo ${{ secret.PROVIDER_ACC_TEST_ENV }} > test-env.yaml
+        run: |
+          cat <<EOF> test-env.yaml
+            ${{ secrets.PROVIDER_ACC_TEST_ENV }}
+          EOF
 
       - name: Acceptance Test
         run: make testacc
