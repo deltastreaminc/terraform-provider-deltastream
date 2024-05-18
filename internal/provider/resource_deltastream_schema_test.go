@@ -20,7 +20,7 @@ func TestAccDeltaStreamSchema(t *testing.T) {
 		t.Fatalf("Failed to load test environment: %v", err)
 	}
 
-	resource.UnitTest(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck: func() { testAccPreCheck(t) },
 		Steps: []resource.TestStep{{
 			ProtoV6ProviderFactories: testAccProviders,

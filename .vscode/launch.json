@@ -9,7 +9,7 @@
             "program": "/home/kraman/deltastream/terraform-provider-deltastream/internal/provider/resource_deltastream_database_test.go",
             "env": {
                 "TF_ACC": "1",
-                "DELTASTREAM_CRED_FILE": "${workspaceFolder}/env-stage.yaml",
+                "DELTASTREAM_CRED_FILE": "${workspaceFolder}/test-env.yaml",
             },
             "args": ["-test.v", "-test.timeout=120m"],
             "showLog": true
