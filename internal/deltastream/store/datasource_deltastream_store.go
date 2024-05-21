@@ -305,12 +305,19 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	if err := util.SetSqlContext(ctx, d.cfg.Conn, &d.cfg.Role, nil, nil, nil); err != nil {
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
+
+	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
 
-	rows, err := d.cfg.Conn.QueryContext(ctx, `LIST STORES;`)
+	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to list stores", err.Error())
 		return
@@ -341,7 +348,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		}
 	}
 
-	row := d.cfg.Conn.QueryRowContext(ctx, fmt.Sprintf(`DESCRIBE STORE "%s";`, store.Name.ValueString()))
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`DESCRIBE STORE "%s";`, store.Name.ValueString()))
 	var metadataJSON string
 	var uri string
 	var detailsJSON string

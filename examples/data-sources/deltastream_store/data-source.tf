@@ -1,3 +1,3 @@
 data "deltastream_store" "example" {
-    name = "example_store"
+  name = "example_store"
 }

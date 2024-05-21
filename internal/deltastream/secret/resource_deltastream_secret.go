@@ -6,6 +6,7 @@ package secret
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"text/template"
@@ -32,7 +33,8 @@ func NewSecretResource() resource.Resource {
 }
 
 type SecretResource struct {
-	cfg *config.DeltaStreamProviderCfg
+	cfg  *config.DeltaStreamProviderCfg
+	conn *sql.Conn
 }
 
 type SecretResourceData struct {
@@ -113,6 +115,13 @@ func (d *SecretResource) Configure(ctx context.Context, req resource.ConfigureRe
 		return
 	}
 
+	var err error
+	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+
 	d.cfg = cfg
 }
 
@@ -120,7 +129,7 @@ func (d *SecretResource) Metadata(ctx context.Context, req resource.MetadataRequ
 	resp.TypeName = req.ProviderTypeName + "_secret"
 }
 
-const createStatement = `CREATE SECRET IF NOT EXISTS "{{.Name}}" WITH( 
+const createStatement = `CREATE SECRET "{{.Name}}" WITH( 
 	'type' = {{.Type}}, 
 	{{ if .Description }}'description' = '{{.Description}}',{{ end }}
 	{{ if .SecretString }}'secret_string' = '{{.SecretString}}',{{ end }}
@@ -143,7 +152,7 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		roleName = secret.Owner.ValueString()
 	}
 
-	if err := util.SetSqlContext(ctx, d.cfg.Conn, &roleName, nil, nil, nil); err != nil {
+	if err := util.SetSqlContext(ctx, d.conn, &roleName, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
@@ -165,7 +174,7 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		"SecretString":     secret.StringValue.ValueString(),
 		"CustomProperties": customProps,
 	})
-	if _, err := d.cfg.Conn.ExecContext(ctx, b.String()); err != nil {
+	if _, err := d.conn.ExecContext(ctx, b.String()); err != nil {
 		resp.Diagnostics.AddError("failed to create secret", err.Error())
 		return
 	}
@@ -180,7 +189,7 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 		return nil
 	}); err != nil {
-		if _, derr := d.cfg.Conn.ExecContext(ctx, `DROP SECRET "`+secret.Name.ValueString()+`";`); derr != nil {
+		if _, derr := d.conn.ExecContext(ctx, `DROP SECRET "`+secret.Name.ValueString()+`";`); derr != nil {
 			tflog.Error(ctx, "failed to clean up secret", map[string]any{
 				"name":  secret.Name.ValueString(),
 				"error": derr.Error(),
@@ -195,7 +204,7 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 }
 
 func (d *SecretResource) updateComputed(ctx context.Context, db SecretResourceData) (SecretResourceData, error) {
-	rows, err := d.cfg.Conn.QueryContext(ctx, `LIST SECRETS;`)
+	rows, err := d.conn.QueryContext(ctx, `LIST SECRETS;`)
 	if err != nil {
 		return db, err
 	}
@@ -234,12 +243,12 @@ func (d *SecretResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	if !secret.Owner.IsNull() && !secret.Owner.IsUnknown() {
 		roleName = secret.Owner.ValueString()
 	}
-	if err := util.SetSqlContext(ctx, d.cfg.Conn, &roleName, nil, nil, nil); err != nil {
+	if err := util.SetSqlContext(ctx, d.conn, &roleName, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
 
-	if _, err := d.cfg.Conn.ExecContext(ctx, fmt.Sprintf(`DROP SECRET "%s";`, secret.Name.ValueString())); err != nil {
+	if _, err := d.conn.ExecContext(ctx, fmt.Sprintf(`DROP SECRET "%s";`, secret.Name.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidSecret {
 			resp.Diagnostics.AddError("failed to drop secret", err.Error())

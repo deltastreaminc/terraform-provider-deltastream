@@ -6,6 +6,7 @@ package database
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"text/template"
@@ -82,7 +83,7 @@ func (d *DatabaseResource) Metadata(ctx context.Context, req resource.MetadataRe
 	resp.TypeName = req.ProviderTypeName + "_database"
 }
 
-const createStatement = `CREATE DATABASE IF NOT EXISTS "{{.Name}}";`
+const createStatement = `CREATE DATABASE "{{.Name}}";`
 
 // Create implements resource.Resource.
 func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -94,12 +95,19 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
+
 	roleName := d.cfg.Role
 	if !database.Owner.IsNull() && !database.Owner.IsUnknown() {
 		roleName = database.Owner.ValueString()
 	}
 
-	if err := util.SetSqlContext(ctx, d.cfg.Conn, &roleName, nil, nil, nil); err != nil {
+	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
@@ -108,19 +116,19 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	template.Must(template.New("").Parse(createStatement)).Execute(b, map[string]any{
 		"Name": database.Name.ValueString(),
 	})
-	if _, err := d.cfg.Conn.ExecContext(ctx, b.String()); err != nil {
+	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
 		resp.Diagnostics.AddError("failed to create database", err.Error())
 		return
 	}
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
-		database, err = d.updateComputed(ctx, database)
+		database, err = d.updateComputed(ctx, conn, database)
 		if err != nil {
 			return err
 		}
 		return nil
 	}); err != nil {
-		if _, derr := d.cfg.Conn.ExecContext(ctx, `DROP DATABASE "`+database.Name.ValueString()+`";`); derr != nil {
+		if _, derr := conn.ExecContext(ctx, `DROP DATABASE "`+database.Name.ValueString()+`";`); derr != nil {
 			tflog.Error(ctx, "failed to clean up database", map[string]any{
 				"name":  database.Name.ValueString(),
 				"error": derr.Error(),
@@ -134,8 +142,8 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(resp.State.Set(ctx, database)...)
 }
 
-func (d *DatabaseResource) updateComputed(ctx context.Context, db DatabaseResourceData) (DatabaseResourceData, error) {
-	rows, err := d.cfg.Conn.QueryContext(ctx, `LIST DATABASES;`)
+func (d *DatabaseResource) updateComputed(ctx context.Context, conn *sql.Conn, db DatabaseResourceData) (DatabaseResourceData, error) {
+	rows, err := conn.QueryContext(ctx, `LIST DATABASES;`)
 	if err != nil {
 		return db, err
 	}
@@ -166,21 +174,39 @@ func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
+
 	roleName := d.cfg.Role
 	if !database.Owner.IsNull() && !database.Owner.IsUnknown() {
 		roleName = database.Owner.ValueString()
 	}
-	if err := util.SetSqlContext(ctx, d.cfg.Conn, &roleName, nil, nil, nil); err != nil {
+	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
 
-	if _, err := d.cfg.Conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, database.Name.ValueString())); err != nil {
-		var sqlErr gods.ErrSQLError
-		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
-			resp.Diagnostics.AddError("failed to drop Database", err.Error())
-			return
+	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
+		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, database.Name.ValueString())); err != nil {
+			var sqlErr gods.ErrSQLError
+			if !errors.As(err, &sqlErr) {
+				return err
+			}
+			if sqlErr.SQLCode == gods.SqlStateInvalidDatabase {
+				return nil
+			}
+			if sqlErr.SQLCode == gods.SqlStateDependentObjectsStillExist {
+				return retry.RetryableError(err)
+			}
 		}
+		return nil
+	}); err != nil {
+		resp.Diagnostics.AddError("failed to delete database", err.Error())
+		return
 	}
 	tflog.Info(ctx, "Database deleted", map[string]any{"name": database.Name.ValueString()})
 }
@@ -199,6 +225,13 @@ func (d *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
+
 	// all changes to database other than ownership are disallowed
 	if !newDatabase.Name.Equal(currentDatabase.Name) {
 		resp.Diagnostics.AddError("invalid update", "database name cannot be changed")
@@ -209,7 +242,7 @@ func (d *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		tflog.Error(ctx, "transfer ownership not yet supported")
 	}
 
-	currentDatabase, err := d.updateComputed(ctx, currentDatabase)
+	currentDatabase, err = d.updateComputed(ctx, conn, currentDatabase)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update state", err.Error())
 		return
@@ -219,19 +252,26 @@ func (d *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 }
 
 func (d *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var Database DatabaseResourceData
+	var database DatabaseResourceData
 
 	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &Database)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &database)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	Database, err := d.updateComputed(ctx, Database)
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
+
+	database, err = d.updateComputed(ctx, conn, database)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update state", err.Error())
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, Database)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, database)...)
 }

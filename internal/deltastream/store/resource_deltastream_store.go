@@ -6,6 +6,7 @@ package store
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -393,7 +394,7 @@ func (d *StoreResource) Metadata(ctx context.Context, req resource.MetadataReque
 	resp.TypeName = req.ProviderTypeName + "_store"
 }
 
-const createStatement = `CREATE STORE IF NOT EXISTS "{{.Name}}" WITH(
+const createStatement = `CREATE STORE "{{.Name}}" WITH(
 	{{- if eq .Type "KAFKA" }}
 		'type' = KAFKA, 'access_region' = "{{.AccessRegion}}", 'kafka.sasl.hash_function' = {{.Kafka.SaslHashFunc.ValueString}},
 		{{- if eq .Kafka.SaslHashFunc.ValueString "AWS_MSK_IAM" }}
@@ -444,6 +445,13 @@ const createStatement = `CREATE STORE IF NOT EXISTS "{{.Name}}" WITH(
 func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var store StoreResourceData
 
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
+
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &store)...)
 	if resp.Diagnostics.HasError() {
@@ -455,7 +463,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		roleName = store.Owner.ValueString()
 	}
 
-	if err := util.SetSqlContext(ctx, d.cfg.Conn, &roleName, nil, nil, nil); err != nil {
+	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
@@ -521,13 +529,13 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 	dsql := b.String()
-	if _, err := d.cfg.Conn.ExecContext(ctx, dsql); err != nil {
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics.AddError("failed to create store", err.Error())
 		return
 	}
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
-		store, err = d.updateComputed(ctx, store)
+		store, err = d.updateComputed(ctx, conn, store)
 		if err != nil {
 			return err
 		}
@@ -537,7 +545,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 		return nil
 	}); err != nil {
-		if _, derr := d.cfg.Conn.ExecContext(ctx, `DROP STORE "`+store.Name.ValueString()+`";`); derr != nil {
+		if _, derr := conn.ExecContext(ctx, `DROP STORE "`+store.Name.ValueString()+`";`); derr != nil {
 			tflog.Error(ctx, "failed to clean up store", map[string]any{
 				"name":  store.Name.ValueString(),
 				"error": derr.Error(),
@@ -551,8 +559,8 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 	resp.Diagnostics.Append(resp.State.Set(ctx, store)...)
 }
 
-func (d *StoreResource) updateComputed(ctx context.Context, store StoreResourceData) (StoreResourceData, error) {
-	rows, err := d.cfg.Conn.QueryContext(ctx, `LIST STORES;`)
+func (d *StoreResource) updateComputed(ctx context.Context, conn *sql.Conn, store StoreResourceData) (StoreResourceData, error) {
+	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
 	if err != nil {
 		return store, err
 	}
@@ -588,6 +596,13 @@ func (d *StoreResource) updateComputed(ctx context.Context, store StoreResourceD
 func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var store StoreResourceData
 
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
+
 	resp.Diagnostics.Append(req.State.Get(ctx, &store)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -597,12 +612,12 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	if !store.Owner.IsNull() && !store.Owner.IsUnknown() {
 		roleName = store.Owner.ValueString()
 	}
-	if err := util.SetSqlContext(ctx, d.cfg.Conn, &roleName, nil, nil, nil); err != nil {
+	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
 
-	if _, err := d.cfg.Conn.ExecContext(ctx, fmt.Sprintf(`DROP STORE "%s";`, store.Name.ValueString())); err != nil {
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP STORE "%s";`, store.Name.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
 			resp.Diagnostics.AddError("failed to drop Database", err.Error())
@@ -615,6 +630,13 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var currentStore StoreResourceData
 	var newStore StoreResourceData
+
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &newStore)...)
@@ -636,7 +658,7 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		tflog.Error(ctx, "transfer ownership not yet supported")
 	}
 
-	currentStore, err := d.updateComputed(ctx, currentStore)
+	currentStore, err = d.updateComputed(ctx, conn, currentStore)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update state", err.Error())
 		return
@@ -646,19 +668,26 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 }
 
 func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var Database StoreResourceData
+	var database StoreResourceData
+
+	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		return
+	}
+	defer conn.Close()
 
 	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &Database)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &database)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	Database, err := d.updateComputed(ctx, Database)
+	database, err = d.updateComputed(ctx, conn, database)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to update state", err.Error())
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, Database)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, database)...)
 }
