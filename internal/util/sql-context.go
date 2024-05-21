@@ -56,3 +56,29 @@ func SetSqlContext(ctx context.Context, conn *sql.Conn, roleName, dbName, schema
 	}
 	return nil
 }
+
+func GetConnection(ctx context.Context, db *sql.DB, org, roleName string) (*sql.Conn, error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.PingContext(ctx); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to establish connection: %w", err)
+	}
+
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ORGANIZATION "%s";`, org)); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to set organization: %w", err)
+	}
+
+	sRoleName, _, _, _ := getSqlConnectionContext(conn)
+	if roleName != ptr.Deref(sRoleName, "") {
+		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ROLE "%s";`, roleName)); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("failed to set role: %w", err)
+		}
+	}
+
+	return conn, nil
+}

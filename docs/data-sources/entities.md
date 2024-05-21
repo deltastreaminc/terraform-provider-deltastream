@@ -17,7 +17,7 @@ Entities in a store
 
 ### Required
 
-- `store_name` (String) Name of the Store
+- `store` (String) Name of the Store
 
 ### Optional
 

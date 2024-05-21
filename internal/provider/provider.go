@@ -22,6 +22,7 @@ import (
 	gods "github.com/deltastreaminc/go-deltastream"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/database"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/region"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/relation"
 	dsschema "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/secret"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/store"
@@ -154,43 +155,21 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		resp.Diagnostics.AddError("Failed to configure connection", err.Error())
 		return
 	}
-	db := sql.OpenDB(connector)
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to configure connection", err.Error())
-		return
-	}
-
-	if err := conn.PingContext(ctx); err != nil {
-		resp.Diagnostics.AddError("Failed to establish connection", err.Error())
-		return
-	}
-
 	if data.Organization == nil {
 		resp.Diagnostics.AddError("Organization is required", "")
 		return
 	}
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ORGANIZATION "%s";`, *data.Organization)); err != nil {
-		resp.Diagnostics.AddError("Failed to set organization", err.Error())
-		return
-	}
-
-	if data.Role == nil {
-		resp.Diagnostics.AddError("Role is required", "")
-		return
-	}
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ROLE "%s";`, *data.Role)); err != nil {
-		resp.Diagnostics.AddError("Failed to set role", err.Error())
-		return
-	}
+	db := sql.OpenDB(connector)
 
 	resp.ResourceData = &config.DeltaStreamProviderCfg{
-		Conn: conn,
-		Role: *data.Role,
+		Db:           db,
+		Organization: *data.Organization,
+		Role:         *data.Role,
 	}
 	resp.DataSourceData = &config.DeltaStreamProviderCfg{
-		Conn: conn,
-		Role: *data.Role,
+		Db:           db,
+		Organization: *data.Organization,
+		Role:         *data.Role,
 	}
 }
 
@@ -200,6 +179,7 @@ func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.R
 		dsschema.NewSchemaResource,
 		store.NewStoreResource,
 		secret.NewSecretResource,
+		relation.NewRelationResource,
 	}
 }
 
@@ -217,6 +197,9 @@ func (p *DeltaStreamProvider) DataSources(ctx context.Context) []func() datasour
 		store.NewStoreDataSource,
 		store.NewStoresDataSource,
 		store.NewEntitiesDataSource,
+
+		relation.NewRelationDataSource,
+		relation.NewRelationsDataSource,
 
 		secret.NewSecretDataSource,
 		secret.NewSecretsDataSources,
