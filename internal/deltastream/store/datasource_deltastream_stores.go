@@ -49,7 +49,7 @@ func (d *StoresDataSource) Configure(ctx context.Context, req datasource.Configu
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -115,19 +115,19 @@ func (d *StoresDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to list store", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list store", err)
 		return
 	}
 	defer rows.Close()
@@ -143,7 +143,7 @@ func (d *StoresDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		var createdAt time.Time
 		var updatedAt time.Time
 		if err := rows.Scan(&name, &kind, &accessRegion, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
-			util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
 			return
 		}
 		items = append(items, StoresDatasourceDataItem{

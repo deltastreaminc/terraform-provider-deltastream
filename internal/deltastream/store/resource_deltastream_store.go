@@ -383,7 +383,7 @@ func (d *StoreResource) Configure(ctx context.Context, req resource.ConfigureReq
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -447,7 +447,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -464,7 +464,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -507,7 +507,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		stype = "POSTGRESQL"
 		resp.Diagnostics.Append(store.Postgres.As(ctx, &postgresProperties, basetypes.ObjectAsOptions{})...)
 	default:
-		util.LogError(ctx, resp.Diagnostics, "invalid store", fmt.Errorf("must specify atleast one store type properties"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid store", fmt.Errorf("must specify atleast one store type properties"))
 	}
 	if resp.Diagnostics.HasError() {
 		return
@@ -525,12 +525,12 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		"Databricks":     databricksProperties,
 		"Postgres":       postgresProperties,
 	}); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to render store sql", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to render store sql", err)
 		return
 	}
 	dsql := b.String()
 	if _, err := conn.ExecContext(ctx, dsql); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
 		return
 	}
 
@@ -555,7 +555,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 			}
 		}
 
-		util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
 		return
 	}
 	tflog.Info(ctx, "Store created", map[string]any{"name": store.Name.ValueString()})
@@ -601,7 +601,7 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -616,14 +616,14 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		roleName = store.Owner.ValueString()
 	}
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP STORE "%s";`, store.Name.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidStore {
-			util.LogError(ctx, resp.Diagnostics, "failed to drop store", err)
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to drop store", err)
 			return
 		}
 	}
@@ -636,7 +636,7 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -653,7 +653,7 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	// all changes to store other than ownership are disallowed
 	if !newStore.Name.Equal(currentStore.Name) {
-		util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("store name cannot be changed"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("store name cannot be changed"))
 	}
 
 	if !newStore.Owner.IsNull() && !newStore.Owner.IsUnknown() && newStore.Owner.Equal(currentStore.Owner) {
@@ -663,7 +663,7 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	currentStore, err = d.updateComputed(ctx, conn, currentStore)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 
@@ -675,7 +675,7 @@ func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -686,7 +686,7 @@ func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -702,7 +702,7 @@ func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		if errors.As(err, &godsErr) && godsErr.SQLCode != gods.SqlStateInvalidStore {
 			return
 		}
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 

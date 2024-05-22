@@ -32,7 +32,7 @@ func (d *RegionDataSource) Configure(ctx context.Context, req datasource.Configu
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -85,19 +85,19 @@ func (d *RegionDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	rows, err := conn.QueryContext(ctx, `LIST REGIONS;`)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to list regions", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list regions", err)
 		return
 	}
 	defer rows.Close()
@@ -107,7 +107,7 @@ func (d *RegionDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		var cloud string
 		var region string
 		if err := rows.Scan(&name, &cloud, &region); err != nil {
-			util.LogError(ctx, resp.Diagnostics, "failed to read region", err)
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read region", err)
 			return
 		}
 		if name == dsRegion.Name.ValueString() {

@@ -27,6 +27,6 @@ provider "deltastream" {
 
 - `api_key` (String) API key. Can also be set via the DELTASTREAM_API_KEY environment variable
 - `insecure_skip_verify` (Boolean) Skip SSL verification
-- `organization` (String) DeltaStream organization Name or ID. Can also be set via the DELTASTREAM_ORGANIZATION environment variable.
+- `organization` (String) DeltaStream organization ID. Can also be set via the DELTASTREAM_ORGANIZATION environment variable.
 - `role` (String) DeltaStream role to use for managing resources and queries. Can also be set via the DELTASTREAM_ROLE environment variable. Default: sysadmin
 - `server` (String) Server. Can also be set via the DELTASTREAM_SERVER environment variable. Default: https://api.deltastream.io/v2

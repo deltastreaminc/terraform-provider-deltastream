@@ -13,17 +13,17 @@ resource "random_id" "sch2" {
 }
 
 resource "deltastream_database" "db1" {
-  name          = "db_${random_id.db1.hex}"
+  name          = "schema_${random_id.db1.hex}"
 }
 
 resource "deltastream_schema" "sch1" {
   database      = deltastream_database.db1.name
-  name          = "sch_${random_id.sch1.hex}"
+  name          = "schema_${random_id.sch1.hex}"
 }
 
 resource "deltastream_schema" "sch2" {
   database      = deltastream_database.db1.name
-  name          = "sch_${random_id.sch2.hex}"
+  name          = "schema_${random_id.sch2.hex}"
 }
 
 data "deltastream_schema" "sch1" {

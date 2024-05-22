@@ -1,7 +1,12 @@
 provider "deltastream" {}
 
-data "deltastream_regions" "all" {}
+variable "region" {
+  type = string
+}
 
+data "deltastream_region" "region" {
+  name = var.region
+}
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -35,8 +40,8 @@ variable "databricks_bucket_region" {
 }
 
 resource "deltastream_store" "databricks" {
-  name          = "databricks_${random_id.suffix.hex}"
-  access_region = data.deltastream_regions.all.items[0].name
+  name          = "store_databricks_${random_id.suffix.hex}"
+  access_region = data.deltastream_region.region.name
   databricks = {
     uris              = var.databricks_uri
     app_token         = var.databricks_app_token

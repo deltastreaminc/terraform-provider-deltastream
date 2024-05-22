@@ -9,9 +9,11 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -71,12 +73,14 @@ func providerSchema() schema.Schema {
 				Optional:    true,
 			},
 			"organization": schema.StringAttribute{
-				Description: "DeltaStream organization Name or ID. Can also be set via the DELTASTREAM_ORGANIZATION environment variable.",
+				Description: "DeltaStream organization ID. Can also be set via the DELTASTREAM_ORGANIZATION environment variable.",
 				Optional:    true,
+				Validators:  util.UUIDValidators,
 			},
 			"role": schema.StringAttribute{
 				Description: "DeltaStream role to use for managing resources and queries. Can also be set via the DELTASTREAM_ROLE environment variable. Default: sysadmin",
 				Optional:    true,
+				Validators:  util.IdentifierValidators,
 			},
 		},
 	}
@@ -125,6 +129,9 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	if debug := os.Getenv("DELTASTREAM_DEBUG"); data.InsecureSkipVerify == nil && debug != "" {
 		data.InsecureSkipVerify = ptr.To(true)
 	}
+	if insecure := os.Getenv("DELTASTREAM_INSECURE_SKIP_VERIFY"); data.InsecureSkipVerify == nil && insecure != "" {
+		data.InsecureSkipVerify = ptr.To(true)
+	}
 
 	server := "https://api.deltastream.io/v2"
 	if os.Getenv("DELTASTREAM_SERVER") != "" {
@@ -135,7 +142,7 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	if data.APIKey == nil {
-		util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("API key is required"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("API key is required"))
 		return
 	}
 	connOptions := []gods.ConnectionOption{gods.WithStaticToken(*data.APIKey)}
@@ -148,26 +155,50 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		sessionID = ptr.To(v)
 	}
 
+	transport := http.RoundTripper(&http.Transport{
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 20 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 1 * time.Minute,
+		ExpectContinueTimeout: 1 * time.Second,
+		IdleConnTimeout:       5 * time.Minute,
+	})
+
 	if data.InsecureSkipVerify != nil && *data.InsecureSkipVerify {
-		httpClient := &http.Client{
-			Transport: &debugTransport{
-				r: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				},
-				stderr: os.Stderr,
-			},
+		transport = &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 20 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 1 * time.Minute,
+			ExpectContinueTimeout: 1 * time.Second,
+			IdleConnTimeout:       5 * time.Minute,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		}
-		connOptions = append(connOptions, gods.WithHTTPClient(httpClient))
 	}
 
-	connOptions = append(connOptions, gods.WithServer(server))
+	if debug := os.Getenv("DELTASTREAM_DEBUG"); debug != "" {
+		transport = &debugTransport{
+			r:      transport,
+			stderr: os.Stderr,
+		}
+	}
+
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+
+	connOptions = append(connOptions, gods.WithServer(server), gods.WithHTTPClient(httpClient))
 	connector, err := gods.ConnectorWithOptions(ctx, connOptions...)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "Failed to configure connection", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "Failed to configure connection", err)
 		return
 	}
 	if data.Organization == nil {
-		util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("Organization is required"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("organization is required"))
 		return
 	}
 	db := sql.OpenDB(connector)

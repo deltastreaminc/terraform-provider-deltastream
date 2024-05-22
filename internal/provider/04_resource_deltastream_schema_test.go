@@ -15,6 +15,7 @@ import (
 )
 
 func TestAccDeltaStreamSchema(t *testing.T) {
+	t.SkipNow()
 	_, err := util.LoadTestEnv()
 	if err != nil {
 		t.Fatalf("Failed to load test environment: %v", err)

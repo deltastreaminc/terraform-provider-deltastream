@@ -72,7 +72,7 @@ func (d *DatabaseResource) Configure(ctx context.Context, req resource.Configure
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -97,7 +97,7 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -108,7 +108,7 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		"Name": database.Name.ValueString(),
 	})
 	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
 		return
 	}
 
@@ -135,7 +135,7 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 			})
 		}
 
-		util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
 		return
 	}
 	tflog.Info(ctx, "Database created", map[string]any{"name": database.Name.ValueString()})
@@ -176,7 +176,7 @@ func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -186,7 +186,7 @@ func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		roleName = database.Owner.ValueString()
 	}
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -205,7 +205,7 @@ func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		}
 		return nil
 	}); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
 		return
 	}
 	tflog.Info(ctx, "Database deleted", map[string]any{"name": database.Name.ValueString()})
@@ -227,14 +227,14 @@ func (d *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	// all changes to database other than ownership are disallowed
 	if !newDatabase.Name.Equal(currentDatabase.Name) {
-		util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("database name cannot be changed"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("database name cannot be changed"))
 	}
 
 	if !newDatabase.Owner.IsNull() && !newDatabase.Owner.IsUnknown() && newDatabase.Owner.Equal(currentDatabase.Owner) {
@@ -244,7 +244,7 @@ func (d *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 
 	currentDatabase, err = d.updateComputed(ctx, conn, currentDatabase)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 
@@ -262,7 +262,7 @@ func (d *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -273,7 +273,7 @@ func (d *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidDatabase {
 			return
 		}
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 

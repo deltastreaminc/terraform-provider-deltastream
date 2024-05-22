@@ -1,7 +1,5 @@
 provider "deltastream" {}
 
-data "deltastream_regions" "all" {}
-
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -23,7 +21,7 @@ variable "kinesis_secret" {
 }
 
 resource "deltastream_store" "kinesis_creds" {
-  name          = "kinesis_with_creds_${random_id.suffix.hex}"
+  name          = "store_kinesis_with_creds_${random_id.suffix.hex}"
   access_region = var.kinesis_region
   kinesis = {
     uris              = var.kinesis_url

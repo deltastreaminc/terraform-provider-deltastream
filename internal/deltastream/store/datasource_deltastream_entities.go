@@ -36,7 +36,7 @@ func (d *EntitiesDataSource) Configure(ctx context.Context, req datasource.Confi
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -97,13 +97,13 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -117,13 +117,13 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		"StoreName":  entityData.Store.ValueString(),
 		"ParentPath": parentPath,
 	}); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to list entities in store", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list entities in store", err)
 		return
 	}
 
 	rows, err := conn.QueryContext(ctx, b.String())
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to list store entities", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list store entities", err)
 		return
 	}
 	defer rows.Close()
@@ -133,7 +133,7 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		var name string
 		var isLeaf bool
 		if err := rows.Scan(&name, &isLeaf); err != nil {
-			util.LogError(ctx, resp.Diagnostics, "failed to read topics", err)
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read topics", err)
 			return
 		}
 		items = append(items, name)

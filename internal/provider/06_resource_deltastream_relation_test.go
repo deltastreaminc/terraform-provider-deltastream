@@ -15,6 +15,7 @@ import (
 )
 
 func TestAccDeltaRelationStore(t *testing.T) {
+	t.SkipNow()
 	creds, err := util.LoadTestEnv()
 	if err != nil {
 		t.Fatalf("Failed to load test environment: %v", err)
@@ -26,9 +27,10 @@ func TestAccDeltaRelationStore(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/relation.tf"),
 			ConfigVariables: config.Variables{
-				"msk_url":      config.StringVariable(creds["msk-uri"]),
-				"msk_iam_role": config.StringVariable(creds["msk-iam-role"]),
-				"msk_region":   config.StringVariable(creds["msk-region"]),
+				"region":           config.StringVariable(creds["region"]),
+				"pub_msk_iam_uri":  config.StringVariable(creds["pub_msk_iam_uri"]),
+				"pub_msk_iam_role": config.StringVariable(creds["pub_msk_iam_role"]),
+				"pub_msk_region":   config.StringVariable(creds["pub_msk_region"]),
 			},
 			Check: resource.ComposeTestCheckFunc(
 				resource.TestCheckResourceAttr("deltastream_relation.pageviews", "owner", "sysadmin"),

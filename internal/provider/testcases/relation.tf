@@ -1,31 +1,37 @@
 provider "deltastream" {}
 
-data "deltastream_regions" "all" {}
+variable "region" {
+  type = string
+}
+
+data "deltastream_region" "region" {
+  name = var.region
+}
 
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
-variable "msk_url" {
+variable "pub_msk_iam_uri" {
   type = string
 }
 
-variable "msk_iam_role" {
+variable "pub_msk_iam_role" {
   type = string
 }
 
-variable "msk_region" {
+variable "pub_msk_region" {
   type = string
 }
 
 resource "deltastream_store" "kafka_with_iam" {
-  name          = "kafka_with_iam_${random_id.suffix.hex}"
-  access_region = data.deltastream_regions.all.items[0].name
+  name          = "relation_kakfa_source_${random_id.suffix.hex}"
+  access_region = data.deltastream_region.region.name
   kafka = {
-    uris               = var.msk_url
+    uris               = var.pub_msk_iam_uri
     sasl_hash_function = "AWS_MSK_IAM"
-    msk_iam_role_arn   = var.msk_iam_role
-    msk_aws_region     = var.msk_region
+    msk_iam_role_arn   = var.pub_msk_iam_role
+    msk_aws_region     = var.pub_msk_region
   }
 }
 
@@ -34,7 +40,7 @@ data "deltastream_entities" "kafka_with_iam" {
 }
 
 resource "deltastream_database" "test" {
-  name = "test_${random_id.suffix.hex}"
+  name = "relation_test_${random_id.suffix.hex}"
 }
 
 resource "deltastream_relation" "pageviews" {
@@ -42,7 +48,7 @@ resource "deltastream_relation" "pageviews" {
   schema = "public"
   store = deltastream_store.kafka_with_iam.name
   sql = <<EOF
-    CREATE STREAM PAGEVIEWS_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
+    CREATE STREAM relation_pageviews_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
   EOF
 }
 
@@ -51,7 +57,7 @@ resource "deltastream_relation" "pageviews_5" {
   schema = "public"
   store = deltastream_store.kafka_with_iam.name
   sql = <<EOF
-    CREATE STREAM PAGEVIEWS_5_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
+    CREATE STREAM relation_pageviews_5_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
   EOF
 }
 
@@ -60,7 +66,7 @@ resource "deltastream_relation" "user_last_page" {
   schema = "public"
   store = deltastream_store.kafka_with_iam.name
   sql = <<EOF
-    CREATE CHANGELOG user_last_page_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR, PRIMARY KEY(userid)) WITH ('topic'='pageviews', 'value.format'='json');
+    CREATE CHANGELOG relation_user_last_page_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR, PRIMARY KEY(userid)) WITH ('topic'='ds_pageviews', 'value.format'='json');
   EOF
 }
 
@@ -75,18 +81,3 @@ data "deltastream_relations" "all" {
   database = deltastream_database.test.name
   schema = "public"
 }
-
-data "deltastream_entity_data" "pageviews" {
-  store = deltastream_store.kafka_with_iam.name
-  entity_path = ["pageviews"]
-  num_rows = 10
-}
-
-# resource "deltastream_query" "pageviews_5" {
-#   source_relation_fqns = [deltastream_relation.pageviews.fqn]
-#   sink_relation_fqn = deltastream_relation.pageviews_5.fqn
-#   sql = <<EOF
-#     INSERT INTO ${deltastream_relation.pageviews_5.fqn} SELECT * FROM ${data.deltastream_relation.pageviews.fqn} WHERE userid = 'USER_5';
-#   EOF
-# }
-

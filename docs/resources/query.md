@@ -29,5 +29,7 @@ Query resource
 
 - `created_at` (String) Creation date of the query
 - `query_id` (String) Query ID
+- `query_name` (String) Query Name
+- `query_version` (Number) Query version
 - `state` (String) State of the Relation
 - `updated_at` (String) Creation date of the query

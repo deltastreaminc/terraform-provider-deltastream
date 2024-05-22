@@ -116,7 +116,7 @@ func (d *RelationResource) Configure(ctx context.Context, req resource.Configure
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -161,7 +161,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -172,7 +172,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, relation.Database.ValueStringPointer(), relation.Schema.ValueStringPointer(), relation.Store.ValueStringPointer()); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -180,45 +180,45 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 	var kind string
 	var descJson string
 	if err := row.Scan(&kind, &descJson); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to create relation", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create relation", err)
 		return
 	}
 
 	if !util.ArrayContains([]string{kind}, []string{"CREATE_STREAM", "CREATE_CHANGELOG"}) {
-		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("invalid relation type: %s", kind))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("invalid relation type: %s", kind))
 		return
 	}
 
 	statementPlan := statementPlan{}
 	if err := json.Unmarshal([]byte(descJson), &statementPlan); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to parse relation plan", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to parse relation plan", err)
 		return
 	}
 
 	if statementPlan.Ddl == nil {
-		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("invalid relation plan"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("invalid relation plan"))
 		return
 	}
 
 	if statementPlan.Ddl.DbName != relation.Database.ValueString() {
-		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("database name mismatch, statement would create relation in %s instead of %s", statementPlan.Ddl.DbName, relation.Database.ValueString()))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("database name mismatch, statement would create relation in %s instead of %s", statementPlan.Ddl.DbName, relation.Database.ValueString()))
 		return
 	}
 
 	if statementPlan.Ddl.SchemaName != relation.Schema.ValueString() {
-		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("schema name mismatch, statement would create relation in %s instead of %s", statementPlan.Ddl.SchemaName, relation.Schema.ValueString()))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("schema name mismatch, statement would create relation in %s instead of %s", statementPlan.Ddl.SchemaName, relation.Schema.ValueString()))
 		return
 	}
 
 	if statementPlan.Ddl.StoreName != relation.Store.ValueString() {
-		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("store name mismatch, statement would use store %s instead of %s", statementPlan.Ddl.StoreName, relation.Store.ValueString()))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("store name mismatch, statement would use store %s instead of %s", statementPlan.Ddl.StoreName, relation.Store.ValueString()))
 		return
 	}
 
 	artifactDDL := artifactDDL{}
 	row = conn.QueryRowContext(ctx, relation.Sql.ValueString())
 	if err := row.Scan(&artifactDDL.Type, &artifactDDL.Name, &artifactDDL.Command, &artifactDDL.Summary); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to create relation", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create relation", err)
 		return
 	}
 	relation.FQN = basetypes.NewStringValue(artifactDDL.Name)
@@ -291,7 +291,7 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -301,14 +301,14 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 		roleName = relation.Owner.ValueString()
 	}
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP RELATION %s;`, relation.FQN.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidRelation {
-			util.LogError(ctx, resp.Diagnostics, "failed to drop relation", err)
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to drop relation", err)
 			return
 		}
 	}
@@ -324,7 +324,7 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 
 		return retry.RetryableError(fmt.Errorf("relation not yet deleted"))
 	}); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to cleanup relation", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to cleanup relation", err)
 		return
 	}
 
@@ -347,14 +347,14 @@ func (d *RelationResource) Update(ctx context.Context, req resource.UpdateReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	// all changes to database other than ownership are disallowed
 	if !newRelation.Database.Equal(currentRelation.Database) || !newRelation.Schema.Equal(currentRelation.Schema) || !newRelation.Store.Equal(currentRelation.Store) {
-		util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("database, schema and store names cannot be changed"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("database, schema and store names cannot be changed"))
 	}
 
 	if !newRelation.Owner.IsNull() && !newRelation.Owner.IsUnknown() && newRelation.Owner.Equal(currentRelation.Owner) {
@@ -364,7 +364,7 @@ func (d *RelationResource) Update(ctx context.Context, req resource.UpdateReques
 
 	currentRelation, err = d.updateComputed(ctx, conn, currentRelation)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 
@@ -382,7 +382,7 @@ func (d *RelationResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -393,7 +393,7 @@ func (d *RelationResource) Read(ctx context.Context, req resource.ReadRequest, r
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidRelation {
 			return
 		}
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 

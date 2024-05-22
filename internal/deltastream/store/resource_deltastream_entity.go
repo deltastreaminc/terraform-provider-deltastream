@@ -222,7 +222,7 @@ func (d *EntityResource) Configure(ctx context.Context, req resource.ConfigureRe
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -255,14 +255,14 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	roleName := d.cfg.Role
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -274,7 +274,7 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	storeType, err := getStoreType(ctx, conn, entity.Store.ValueString())
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "invalid store type", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid store type", err)
 		return
 	}
 
@@ -320,7 +320,7 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 	})
 	sql := b.String()
 	if _, err := conn.ExecContext(ctx, sql); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to create entity", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create entity", err)
 		return
 	}
 
@@ -351,14 +351,14 @@ func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	roleName := d.cfg.Role
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -374,7 +374,7 @@ func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		"EntityPath": entityPath,
 	})
 	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
 		return
 	}
 	tflog.Info(ctx, "Entity deleted", map[string]any{"store": entity.Store.String(), "name": entity.EntityPath.String()})
@@ -396,12 +396,12 @@ func (d *EntityResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
-	util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("entity cannot be changed"))
+	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("entity cannot be changed"))
 	resp.Diagnostics.Append(resp.State.Set(ctx, currentEntity)...)
 }
 

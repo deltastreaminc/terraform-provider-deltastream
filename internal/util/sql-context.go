@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	gods "github.com/deltastreaminc/go-deltastream"
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"k8s.io/utils/ptr"
 )
@@ -64,23 +65,33 @@ func GetConnection(ctx context.Context, db *sql.DB, sessionID *string, org, role
 	if err != nil {
 		return ctx, nil, err
 	}
+
+	conn.Raw(func(driverConn interface{}) error {
+		c := driverConn.(*gods.Conn)
+		ctx := c.GetContext()
+		ctx.OrganizationID = ptr.To(uuid.MustParse(org))
+		ctx.RoleName = ptr.To(roleName)
+		c.SetContext(ctx)
+		return nil
+	})
+
 	if err := conn.PingContext(ctx); err != nil {
 		conn.Close()
 		return ctx, nil, fmt.Errorf("failed to establish connection: %w", err)
 	}
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ORGANIZATION "%s";`, org)); err != nil {
-		conn.Close()
-		return ctx, nil, fmt.Errorf("failed to set organization: %w", err)
-	}
+	// if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ORGANIZATION "%s";`, org)); err != nil {
+	// 	conn.Close()
+	// 	return ctx, nil, fmt.Errorf("failed to set organization: %w", err)
+	// }
 
-	sRoleName, _, _, _ := getSqlConnectionContext(conn)
-	if roleName != ptr.Deref(sRoleName, "") {
-		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ROLE "%s";`, roleName)); err != nil {
-			conn.Close()
-			return ctx, nil, fmt.Errorf("failed to set role: %w", err)
-		}
-	}
+	// sRoleName, _, _, _ := getSqlConnectionContext(conn)
+	// if roleName != ptr.Deref(sRoleName, "") {
+	// 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`USE ROLE "%s";`, roleName)); err != nil {
+	// 		conn.Close()
+	// 		return ctx, nil, fmt.Errorf("failed to set role: %w", err)
+	// 	}
+	// }
 
 	return ctx, conn, nil
 }
