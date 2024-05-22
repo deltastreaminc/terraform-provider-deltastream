@@ -44,7 +44,7 @@ func (d *EntitiesDataSource) Configure(ctx context.Context, req datasource.Confi
 	var err error
 	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 
@@ -118,10 +118,6 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		"StoreName":  entityData.Store.ValueString(),
 		"ParentPath": parentPath,
 	}); err != nil {
-		resp.Diagnostics.AddError("failed to list entities in store", err.Error())
-		return
-	}
-	if _, err := d.conn.ExecContext(ctx, b.String()); err != nil {
 		resp.Diagnostics.AddError("failed to list entities in store", err.Error())
 		return
 	}

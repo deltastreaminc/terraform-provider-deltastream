@@ -33,8 +33,8 @@ resource "deltastream_schema" "example" {
 
 ### Optional
 
-- `owner` (String) Owning role of the Database
+- `owner` (String) Owning role of the schema
 
 ### Read-Only
 
-- `created_at` (String) Creation date of the Database
+- `created_at` (String) Creation date of the schema

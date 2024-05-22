@@ -36,12 +36,12 @@ data "deltastream_relations" "all_in_example_public" {
 
 Read-Only:
 
-- `created_at` (String) Creation date of the Database
+- `created_at` (String) Creation date of the relation
 - `database` (String) Name of the Database
 - `fqn` (String) Fully qualified name of the Relation
 - `name` (String) Name of the Schema
-- `owner` (String) Owning role of the Database
+- `owner` (String) Owning role of the relation
 - `schema` (String) Name of the Schema
 - `state` (String) State of the Relation
 - `type` (String) Type of the Relation
-- `updated_at` (String) Creation date of the Database
+- `updated_at` (String) Creation date of the relation

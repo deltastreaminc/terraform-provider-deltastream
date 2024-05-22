@@ -57,13 +57,13 @@ func (d *SchemaResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Validators:  util.IdentifierValidators,
 			},
 			"owner": schema.StringAttribute{
-				Description: "Owning role of the Database",
+				Description: "Owning role of the schema",
 				Optional:    true,
 				Computed:    true,
 				Validators:  util.IdentifierValidators,
 			},
 			"created_at": schema.StringAttribute{
-				Description: "Creation date of the Database",
+				Description: "Creation date of the schema",
 				Computed:    true,
 			},
 		},
@@ -103,7 +103,7 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -170,7 +170,7 @@ func (d *SchemaResource) updateComputed(ctx context.Context, conn *sql.Conn, sch
 			return sch, nil
 		}
 	}
-	return SchemaResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
+	return SchemaResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSchema}
 }
 
 func (d *SchemaResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -183,7 +183,7 @@ func (d *SchemaResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -235,7 +235,7 @@ func (d *SchemaResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -252,6 +252,10 @@ func (d *SchemaResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	currentSchema, err = d.updateComputed(ctx, conn, currentSchema)
 	if err != nil {
+		var godsErr gods.ErrSQLError
+		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidSchema {
+			return
+		}
 		resp.Diagnostics.AddError("failed to update state", err.Error())
 		return
 	}
@@ -270,7 +274,7 @@ func (d *SchemaResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()

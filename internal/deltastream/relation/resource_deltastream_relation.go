@@ -73,7 +73,7 @@ func (d *RelationResource) Schema(ctx context.Context, req resource.SchemaReques
 				Required:    true,
 			},
 			"owner": schema.StringAttribute{
-				Description: "Owning role of the Database",
+				Description: "Owning role of the relation",
 				Optional:    true,
 				Computed:    true,
 				Validators:  util.IdentifierValidators,
@@ -97,11 +97,11 @@ func (d *RelationResource) Schema(ctx context.Context, req resource.SchemaReques
 				Computed:    true,
 			},
 			"created_at": schema.StringAttribute{
-				Description: "Creation date of the Database",
+				Description: "Creation date of the relation",
 				Computed:    true,
 			},
 			"updated_at": schema.StringAttribute{
-				Description: "Creation date of the Database",
+				Description: "Creation date of the relation",
 				Computed:    true,
 			},
 		},
@@ -161,7 +161,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -184,7 +184,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	if !util.ArrayContains([]string{kind}, []string{"CREATE_STREAM", "CREATE_CHANGELOG", "CREATE_INDEX", "CREATE_TABLE"}) {
+	if !util.ArrayContains([]string{kind}, []string{"CREATE_STREAM", "CREATE_CHANGELOG"}) {
 		resp.Diagnostics.AddError("planning error", "invalid relation type: "+kind)
 		return
 	}
@@ -291,7 +291,7 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -307,7 +307,7 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP RELATION %s;`, relation.FQN.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
-		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
+		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidRelation {
 			resp.Diagnostics.AddError("failed to drop relation", err.Error())
 			return
 		}
@@ -347,7 +347,7 @@ func (d *RelationResource) Update(ctx context.Context, req resource.UpdateReques
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -382,13 +382,17 @@ func (d *RelationResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
 
 	relation, err = d.updateComputed(ctx, conn, relation)
 	if err != nil {
+		var godsErr gods.ErrSQLError
+		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidRelation {
+			return
+		}
 		resp.Diagnostics.AddError("failed to update state", err.Error())
 		return
 	}

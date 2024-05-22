@@ -39,8 +39,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/deltastreaminc/go-deltastream v0.0.0-20240430201603-fc7ae34311f3 h1:d2EsOH0cHYcym5MUp+Yleb8cYbBIiWXeC8tqvj3jhLw=
-github.com/deltastreaminc/go-deltastream v0.0.0-20240430201603-fc7ae34311f3/go.mod h1:GvMIepGYbzVz/Q2m9S8Ps/zyqHU+YuADJdPw5C46ju4=
+github.com/deltastreaminc/go-deltastream v0.0.0-20240621161658-386b9152b61b h1:dmaHmsHWZmybtBF+kW3Wq2TzeuvgxlMfU9DT/OZBz/E=
+github.com/deltastreaminc/go-deltastream v0.0.0-20240621161658-386b9152b61b/go.mod h1:GvMIepGYbzVz/Q2m9S8Ps/zyqHU+YuADJdPw5C46ju4=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=

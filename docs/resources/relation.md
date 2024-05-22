@@ -44,13 +44,13 @@ resource "deltastream_relation" "user_last_page" {
 
 ### Optional
 
-- `owner` (String) Owning role of the Database
+- `owner` (String) Owning role of the relation
 
 ### Read-Only
 
-- `created_at` (String) Creation date of the Database
+- `created_at` (String) Creation date of the relation
 - `fqn` (String) Fully qualified name of the Relation
 - `name` (String) Name of the Relation
 - `state` (String) State of the Relation
 - `type` (String) Type of the Relation
-- `updated_at` (String) Creation date of the Database
+- `updated_at` (String) Creation date of the relation
