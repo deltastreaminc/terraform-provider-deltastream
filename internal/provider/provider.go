@@ -21,6 +21,7 @@ import (
 
 	gods "github.com/deltastreaminc/go-deltastream"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/database"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/query"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/region"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/relation"
 	dsschema "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema"
@@ -180,6 +181,7 @@ func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.R
 		store.NewStoreResource,
 		secret.NewSecretResource,
 		relation.NewRelationResource,
+		query.NewQueryResource,
 	}
 }
 
@@ -197,6 +199,7 @@ func (p *DeltaStreamProvider) DataSources(ctx context.Context) []func() datasour
 		store.NewStoreDataSource,
 		store.NewStoresDataSource,
 		store.NewEntitiesDataSource,
+		store.NewEntityDataDataSource,
 
 		relation.NewRelationDataSource,
 		relation.NewRelationsDataSource,

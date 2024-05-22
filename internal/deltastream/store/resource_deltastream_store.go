@@ -447,7 +447,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -598,7 +598,7 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -633,7 +633,7 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -672,7 +672,7 @@ func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()

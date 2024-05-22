@@ -188,6 +188,8 @@ func TestAccDeltaStreamStore(t *testing.T) {
 
 					return nil
 				}),
+
+				resource.TestCheckResourceAttr("data.deltastream_entity_data.pageviews", "rows.#", "10"),
 			),
 		}},
 	})

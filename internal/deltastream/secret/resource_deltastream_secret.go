@@ -118,7 +118,7 @@ func (d *SecretResource) Configure(ctx context.Context, req resource.ConfigureRe
 	var err error
 	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 

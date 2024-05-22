@@ -161,7 +161,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -184,7 +184,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	if !util.ArrayContains([]string{kind}, []string{"CREATE_STREAM", "CREATE_CHANGELOG", "CREATE_INDEX", "CREATE_TABLE"}) {
+	if !util.ArrayContains([]string{kind}, []string{"CREATE_STREAM", "CREATE_CHANGELOG"}) {
 		resp.Diagnostics.AddError("planning error", "invalid relation type: "+kind)
 		return
 	}
@@ -291,7 +291,7 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -347,7 +347,7 @@ func (d *RelationResource) Update(ctx context.Context, req resource.UpdateReques
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -382,7 +382,7 @@ func (d *RelationResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()

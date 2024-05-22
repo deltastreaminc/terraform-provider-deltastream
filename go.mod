@@ -3,7 +3,7 @@ module github.com/deltastreaminc/terraform-provider-deltastream
 go 1.22.1
 
 require (
-	github.com/deltastreaminc/go-deltastream v0.0.0-20240430201603-fc7ae34311f3
+	github.com/deltastreaminc/go-deltastream v0.0.0-20240517202957-63bb52565bd0
 	github.com/hashicorp/terraform-plugin-docs v0.18.0
 	github.com/hashicorp/terraform-plugin-framework v1.8.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.12.0
