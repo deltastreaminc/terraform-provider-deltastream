@@ -124,7 +124,7 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	rows, err := d.conn.QueryContext(ctx, b.String())
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list store", err.Error())
+		resp.Diagnostics.AddError("failed to list store entities", err.Error())
 		return
 	}
 	defer rows.Close()

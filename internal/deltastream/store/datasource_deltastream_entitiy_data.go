@@ -97,7 +97,7 @@ func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.Schema
 	}
 }
 
-const printEntitiesStatement = `PRINT ENTITY
+const printEntityStatement = `PRINT ENTITY
 	{{ if ne (len .EntityPath) 0 }}
 	{{- range $index, $element := .EntityPath }}
         {{- if $index }}.{{ end }}
@@ -127,7 +127,7 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	b := bytes.NewBuffer(nil)
-	if err := template.Must(template.New("").Parse(printEntitiesStatement)).Execute(b, map[string]any{
+	if err := template.Must(template.New("").Parse(printEntityStatement)).Execute(b, map[string]any{
 		"StoreName":  entityData.Store.ValueString(),
 		"EntityPath": entityPath,
 	}); err != nil {
@@ -137,7 +137,7 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 
 	rows, err := d.conn.QueryContext(ctx, b.String())
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list store", err.Error())
+		resp.Diagnostics.AddError("failed to print store entity", err.Error())
 		return
 	}
 	defer rows.Close()
