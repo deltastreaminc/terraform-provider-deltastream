@@ -118,7 +118,7 @@ func (d *SecretResource) Configure(ctx context.Context, req resource.ConfigureRe
 	var err error
 	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 
@@ -308,6 +308,10 @@ func (d *SecretResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	Secret, err := d.updateComputed(ctx, Secret)
 	if err != nil {
+		var godsErr gods.ErrSQLError
+		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidSecret {
+			return
+		}
 		resp.Diagnostics.AddError("failed to update state", err.Error())
 		return
 	}

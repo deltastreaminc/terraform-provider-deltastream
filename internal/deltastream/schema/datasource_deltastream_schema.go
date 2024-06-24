@@ -89,7 +89,7 @@ func (d *SchemaDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()
@@ -112,7 +112,7 @@ func (d *SchemaDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		var owner string
 		var createdAt time.Time
 		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			resp.Diagnostics.AddError("failed to read database", err.Error())
+			resp.Diagnostics.AddError("failed to read schema", err.Error())
 			return
 		}
 		if name == schema.Name.ValueString() {

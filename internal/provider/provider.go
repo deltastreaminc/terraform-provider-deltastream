@@ -21,6 +21,7 @@ import (
 
 	gods "github.com/deltastreaminc/go-deltastream"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/database"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/query"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/region"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/relation"
 	dsschema "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema"
@@ -136,6 +137,9 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 	connOptions := []gods.ConnectionOption{gods.WithStaticToken(*data.APIKey)}
+	if v := os.Getenv("DELTASTREAM_SESSION_ID"); v != "" {
+		connOptions = append(connOptions, gods.WithSessionID(v))
+	}
 
 	if data.InsecureSkipVerify != nil && *data.InsecureSkipVerify {
 		httpClient := &http.Client{
@@ -178,8 +182,10 @@ func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.R
 		database.NewDatabaseResource,
 		dsschema.NewSchemaResource,
 		store.NewStoreResource,
+		store.NewEntityResource,
 		secret.NewSecretResource,
 		relation.NewRelationResource,
+		query.NewQueryResource,
 	}
 }
 
@@ -197,6 +203,7 @@ func (p *DeltaStreamProvider) DataSources(ctx context.Context) []func() datasour
 		store.NewStoreDataSource,
 		store.NewStoresDataSource,
 		store.NewEntitiesDataSource,
+		store.NewEntityDataDataSource,
 
 		relation.NewRelationDataSource,
 		relation.NewRelationsDataSource,

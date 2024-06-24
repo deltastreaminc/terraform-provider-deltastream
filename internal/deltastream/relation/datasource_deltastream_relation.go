@@ -74,7 +74,7 @@ func (d *RelationDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Computed:    true,
 			},
 			"owner": schema.StringAttribute{
-				Description: "Owning role of the Database",
+				Description: "Owning role of the relation",
 				Computed:    true,
 			},
 			"type": schema.StringAttribute{
@@ -86,11 +86,11 @@ func (d *RelationDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 				Computed:    true,
 			},
 			"created_at": schema.StringAttribute{
-				Description: "Creation date of the Database",
+				Description: "Creation date of the relation",
 				Computed:    true,
 			},
 			"updated_at": schema.StringAttribute{
-				Description: "Creation date of the Database",
+				Description: "Creation date of the relation",
 				Computed:    true,
 			},
 		},
@@ -111,7 +111,7 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect to database", err.Error())
+		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 	defer conn.Close()

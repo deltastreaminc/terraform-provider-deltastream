@@ -1,0 +1,101 @@
+provider "deltastream" {}
+
+data "deltastream_regions" "all" {}
+
+resource "random_id" "suffix" {
+  byte_length = 4
+}
+
+variable "msk_url" {
+  type = string
+}
+
+variable "msk_iam_role" {
+  type = string
+}
+
+variable "msk_region" {
+  type = string
+}
+
+resource "deltastream_store" "kafka_with_iam" {
+  name          = "kafka_with_iam_${random_id.suffix.hex}"
+  access_region = data.deltastream_regions.all.items[0].name
+  kafka = {
+    uris               = var.msk_url
+    sasl_hash_function = "AWS_MSK_IAM"
+    msk_iam_role_arn   = var.msk_iam_role
+    msk_aws_region     = var.msk_region
+  }
+}
+
+variable "kinesis_url" {
+  type = string
+}
+
+variable "kinesis_region" {
+  type = string
+}
+
+variable "kinesis_key" {
+  type = string
+}
+
+variable "kinesis_secret" {
+  type = string
+}
+
+resource "deltastream_store" "kinesis_creds" {
+  name          = "kinesis_with_creds_${random_id.suffix.hex}"
+  access_region = var.kinesis_region
+  kinesis = {
+    uris              = var.kinesis_url
+    access_key_id     = var.kinesis_key
+    secret_access_key = var.kinesis_secret
+  }
+}
+
+resource "deltastream_database" "db" {
+  name = "db_${random_id.suffix.hex}"
+}
+
+resource "deltastream_relation" "pageviews" {
+  database = deltastream_database.db.name
+  schema   = "public"
+  store    = deltastream_store.kafka_with_iam.name
+  sql      = <<EOF
+    CREATE STREAM PAGEVIEWS_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
+  EOF
+}
+
+resource "deltastream_entity" "pageviews_6" {
+  store       = deltastream_store.kinesis_creds.name
+  entity_path = ["pageviews_6_${random_id.suffix.hex}"]
+  kafka_properties = {
+    kinesis_shards = 1
+  }
+}
+
+resource "deltastream_relation" "pageviews_6" {
+  database = deltastream_database.db.name
+  schema   = "public"
+  store    = deltastream_store.kafka_with_iam.name
+  sql      = <<EOF
+    CREATE STREAM PAGEVIEWS_6_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='${deltastream_entity.pageviews_6.entity_path[0]}', 'value.format'='json');
+  EOF
+}
+
+resource "deltastream_query" "insert_into_pageviews_6" {
+  source_relation_fqns = [deltastream_relation.pageviews.fqn]
+  sink_relation_fqn    = deltastream_relation.pageviews_6.fqn
+  sql                  = <<EOF
+    INSERT INTO ${deltastream_relation.pageviews_6.fqn} SELECT * FROM ${deltastream_relation.pageviews.fqn} WHERE userid = 'User_6';
+  EOF
+}
+
+data "deltastream_entity_data" "pageviews_6" {
+  depends_on  = [deltastream_query.insert_into_pageviews_6]
+  store       = deltastream_store.kafka_with_iam.name
+  entity_path = deltastream_entity.pageviews_6.entity_path
+  num_rows    = 3
+}
