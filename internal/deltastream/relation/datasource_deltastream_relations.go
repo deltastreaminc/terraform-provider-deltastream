@@ -120,7 +120,7 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return

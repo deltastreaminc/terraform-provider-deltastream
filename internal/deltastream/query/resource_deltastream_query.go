@@ -140,7 +140,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
@@ -287,7 +287,7 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
@@ -344,7 +344,7 @@ func (d *QueryResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
@@ -376,7 +376,7 @@ func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return

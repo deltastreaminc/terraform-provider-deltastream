@@ -6,7 +6,6 @@ package store
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"text/template"
 
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
@@ -26,8 +25,7 @@ func NewEntitiesDataSource() datasource.DataSource {
 }
 
 type EntitiesDataSource struct {
-	cfg  *config.DeltaStreamProviderCfg
-	conn *sql.Conn
+	cfg *config.DeltaStreamProviderCfg
 }
 
 func (d *EntitiesDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -38,13 +36,6 @@ func (d *EntitiesDataSource) Configure(ctx context.Context, req datasource.Confi
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
 		resp.Diagnostics.AddError("provider error", "invalid provider data")
-		return
-	}
-
-	var err error
-	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
-	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 
@@ -103,7 +94,14 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	if err := util.SetSqlContext(ctx, d.conn, &d.cfg.Role, nil, nil, nil); err != nil {
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect", err.Error())
+		return
+	}
+	defer conn.Close()
+
+	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
@@ -122,7 +120,7 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	rows, err := d.conn.QueryContext(ctx, b.String())
+	rows, err := conn.QueryContext(ctx, b.String())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to list store entities", err.Error())
 		return

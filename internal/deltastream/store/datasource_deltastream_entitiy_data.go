@@ -6,7 +6,6 @@ package store
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"text/template"
 
@@ -28,8 +27,7 @@ func NewEntityDataDataSource() datasource.DataSource {
 }
 
 type EntityDataDataSource struct {
-	cfg  *config.DeltaStreamProviderCfg
-	conn *sql.Conn
+	cfg *config.DeltaStreamProviderCfg
 }
 
 func (d *EntityDataDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -40,13 +38,6 @@ func (d *EntityDataDataSource) Configure(ctx context.Context, req datasource.Con
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
 		resp.Diagnostics.AddError("provider error", "invalid provider data")
-		return
-	}
-
-	var err error
-	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
-	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
 	}
 
@@ -116,7 +107,14 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	if err := util.SetSqlContext(ctx, d.conn, &d.cfg.Role, nil, nil, nil); err != nil {
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		resp.Diagnostics.AddError("failed to connect", err.Error())
+		return
+	}
+	defer conn.Close()
+
+	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
 		resp.Diagnostics.AddError("failed to set sql context", err.Error())
 		return
 	}
@@ -135,7 +133,7 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	rows, err := d.conn.QueryContext(ctx, b.String())
+	rows, err := conn.QueryContext(ctx, b.String())
 	if err != nil {
 		resp.Diagnostics.AddError("failed to print store entity", err.Error())
 		return

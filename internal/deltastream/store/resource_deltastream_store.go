@@ -445,7 +445,7 @@ const createStatement = `CREATE STORE "{{.Name}}" WITH(
 func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var store StoreResourceData
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
@@ -599,7 +599,7 @@ func (d *StoreResource) updateComputed(ctx context.Context, conn *sql.Conn, stor
 func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var store StoreResourceData
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
@@ -634,7 +634,7 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	var currentStore StoreResourceData
 	var newStore StoreResourceData
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return
@@ -673,7 +673,7 @@ func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, 
 func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var store StoreResourceData
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
 		resp.Diagnostics.AddError("failed to connect", err.Error())
 		return

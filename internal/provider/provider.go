@@ -137,8 +137,10 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		return
 	}
 	connOptions := []gods.ConnectionOption{gods.WithStaticToken(*data.APIKey)}
+	var sessionID *string
 	if v := os.Getenv("DELTASTREAM_SESSION_ID"); v != "" {
 		connOptions = append(connOptions, gods.WithSessionID(v))
+		sessionID = ptr.To(v)
 	}
 
 	if data.InsecureSkipVerify != nil && *data.InsecureSkipVerify {
@@ -169,11 +171,13 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		Db:           db,
 		Organization: *data.Organization,
 		Role:         *data.Role,
+		SessionID:    sessionID,
 	}
 	resp.DataSourceData = &config.DeltaStreamProviderCfg{
 		Db:           db,
 		Organization: *data.Organization,
 		Role:         *data.Role,
+		SessionID:    sessionID,
 	}
 }
 
