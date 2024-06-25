@@ -6,7 +6,7 @@ package store
 import (
 	"bytes"
 	"context"
-	"database/sql"
+	"fmt"
 	"text/template"
 
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
@@ -26,8 +26,7 @@ func NewEntitiesDataSource() datasource.DataSource {
 }
 
 type EntitiesDataSource struct {
-	cfg  *config.DeltaStreamProviderCfg
-	conn *sql.Conn
+	cfg *config.DeltaStreamProviderCfg
 }
 
 func (d *EntitiesDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -37,14 +36,7 @@ func (d *EntitiesDataSource) Configure(ctx context.Context, req datasource.Confi
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("provider error", "invalid provider data")
-		return
-	}
-
-	var err error
-	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
-	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -103,8 +95,15 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	if err := util.SetSqlContext(ctx, d.conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		return
+	}
+	defer conn.Close()
+
+	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -118,13 +117,13 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		"StoreName":  entityData.Store.ValueString(),
 		"ParentPath": parentPath,
 	}); err != nil {
-		resp.Diagnostics.AddError("failed to list entities in store", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to list entities in store", err)
 		return
 	}
 
-	rows, err := d.conn.QueryContext(ctx, b.String())
+	rows, err := conn.QueryContext(ctx, b.String())
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list store", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to list store entities", err)
 		return
 	}
 	defer rows.Close()
@@ -134,7 +133,7 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		var name string
 		var isLeaf bool
 		if err := rows.Scan(&name, &isLeaf); err != nil {
-			resp.Diagnostics.AddError("failed to read topics", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to read topics", err)
 			return
 		}
 		items = append(items, name)

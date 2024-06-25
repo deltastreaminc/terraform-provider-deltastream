@@ -78,7 +78,7 @@ func (d *SchemaResource) Configure(ctx context.Context, req resource.ConfigureRe
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("internal error", "invalid provider data")
+		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -101,9 +101,9 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -114,7 +114,7 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -124,7 +124,7 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 		"Name":     schema.Name.ValueString(),
 	})
 	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
-		resp.Diagnostics.AddError("failed to create schema", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to create schema", err)
 		return
 	}
 
@@ -142,7 +142,7 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 			})
 		}
 
-		resp.Diagnostics.AddError("failed to create schema", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to create schema", err)
 		return
 	}
 	tflog.Info(ctx, "Schema created", map[string]any{"name": schema.Name.ValueString()})
@@ -181,9 +181,9 @@ func (d *SchemaResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -193,7 +193,7 @@ func (d *SchemaResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		roleName = schema.Owner.ValueString()
 	}
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -212,7 +212,7 @@ func (d *SchemaResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		}
 		return nil
 	}); err != nil {
-		resp.Diagnostics.AddError("failed to delete schema", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to delete schema", err)
 		return
 	}
 	tflog.Info(ctx, "Schema deleted", map[string]any{"name": schema.Name.ValueString()})
@@ -233,16 +233,16 @@ func (d *SchemaResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	// all changes to database other than ownership are disallowed
 	if !newSchema.Database.Equal(currentSchema.Database) || !newSchema.Name.Equal(currentSchema.Name) {
-		resp.Diagnostics.AddError("invalid update", "database and schema names cannot be changed")
+		util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("database and schema names cannot be changed"))
 	}
 
 	if !newSchema.Owner.IsNull() && !newSchema.Owner.IsUnknown() && newSchema.Owner.Equal(currentSchema.Owner) {
@@ -256,7 +256,7 @@ func (d *SchemaResource) Update(ctx context.Context, req resource.UpdateRequest,
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidSchema {
 			return
 		}
-		resp.Diagnostics.AddError("failed to update state", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 
@@ -272,16 +272,16 @@ func (d *SchemaResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	schema, err = d.updateComputed(ctx, conn, schema)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to update state", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 

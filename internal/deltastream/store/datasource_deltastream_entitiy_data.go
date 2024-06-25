@@ -6,8 +6,8 @@ package store
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
+	"fmt"
 	"text/template"
 
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
@@ -28,8 +28,7 @@ func NewEntityDataDataSource() datasource.DataSource {
 }
 
 type EntityDataDataSource struct {
-	cfg  *config.DeltaStreamProviderCfg
-	conn *sql.Conn
+	cfg *config.DeltaStreamProviderCfg
 }
 
 func (d *EntityDataDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -39,14 +38,7 @@ func (d *EntityDataDataSource) Configure(ctx context.Context, req datasource.Con
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("provider error", "invalid provider data")
-		return
-	}
-
-	var err error
-	d.conn, err = util.GetConnection(ctx, cfg.Db, cfg.Organization, cfg.Role)
-	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -97,7 +89,7 @@ func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.Schema
 	}
 }
 
-const printEntitiesStatement = `PRINT ENTITY
+const printEntityStatement = `PRINT ENTITY
 	{{ if ne (len .EntityPath) 0 }}
 	{{- range $index, $element := .EntityPath }}
         {{- if $index }}.{{ end }}
@@ -116,8 +108,15 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	if err := util.SetSqlContext(ctx, d.conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	if err != nil {
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		return
+	}
+	defer conn.Close()
+
+	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -127,24 +126,24 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	b := bytes.NewBuffer(nil)
-	if err := template.Must(template.New("").Parse(printEntitiesStatement)).Execute(b, map[string]any{
+	if err := template.Must(template.New("").Parse(printEntityStatement)).Execute(b, map[string]any{
 		"StoreName":  entityData.Store.ValueString(),
 		"EntityPath": entityPath,
 	}); err != nil {
-		resp.Diagnostics.AddError("failed to print entities", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to print entities", err)
 		return
 	}
 
-	rows, err := d.conn.QueryContext(ctx, b.String())
+	rows, err := conn.QueryContext(ctx, b.String())
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list store", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to print store entity", err)
 		return
 	}
 	defer rows.Close()
 
 	cols, err := rows.Columns()
 	if err != nil {
-		resp.Diagnostics.AddError("failed to read columns", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to read columns", err)
 		return
 	}
 
@@ -158,13 +157,13 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		}
 
 		if err := rows.Scan(rowDataPtrs...); err != nil {
-			resp.Diagnostics.AddError("failed to read entity data", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to read entity data", err)
 			return
 		}
 
 		b, err := json.Marshal(rowData)
 		if err != nil {
-			resp.Diagnostics.AddError("failed to marshal entity data", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to marshal entity data", err)
 			return
 		}
 		items = append(items, string(b))

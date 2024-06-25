@@ -9,4 +9,5 @@ type DeltaStreamProviderCfg struct {
 	Db           *sql.DB
 	Organization string
 	Role         string
+	SessionID    *string
 }

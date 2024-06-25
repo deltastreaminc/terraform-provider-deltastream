@@ -137,7 +137,7 @@ func (d *StoreDataSource) Configure(ctx context.Context, req datasource.Configur
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("provider error", "invalid provider data")
+		util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -305,21 +305,21 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list stores", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to list stores", err)
 		return
 	}
 	defer rows.Close()
@@ -334,7 +334,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		var createdAt time.Time
 		var updatedAt time.Time
 		if err := rows.Scan(&name, &kind, &accessRegion, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
-			resp.Diagnostics.AddError("failed to read stores", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
 			return
 		}
 		if name == store.Name.ValueString() {
@@ -356,7 +356,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	var verifyHostname bool
 	var schemaRegistryName *string
 	if err := row.Scan(&metadataJSON, &uri, &detailsJSON, &tlsEnabled, &verifyHostname, &schemaRegistryName); err != nil {
-		resp.Diagnostics.AddError("failed to read store details", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to read store details", err)
 		return
 	}
 
@@ -382,7 +382,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	case "snowflake":
 		details := map[string]any{}
 		if err := yaml.Unmarshal([]byte(detailsJSON), &details); err != nil {
-			resp.Diagnostics.AddError("failed to unmarshal databricks details", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to unmarshal databricks details", err)
 			return
 		}
 
@@ -395,7 +395,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	case "databricks":
 		details := map[string]any{}
 		if err := yaml.Unmarshal([]byte(detailsJSON), &details); err != nil {
-			resp.Diagnostics.AddError("failed to unmarshal databricks details", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to unmarshal databricks details", err)
 			return
 		}
 
