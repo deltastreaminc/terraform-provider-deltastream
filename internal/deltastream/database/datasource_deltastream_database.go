@@ -5,6 +5,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
@@ -32,7 +33,7 @@ func (d *DatabaseDataSource) Configure(ctx context.Context, req datasource.Confi
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("provider error", "invalid provider data")
+		util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -83,19 +84,19 @@ func (d *DatabaseDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	rows, err := conn.QueryContext(ctx, `LIST DATABASES;`)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list databases", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to list databases", err)
 		return
 	}
 	defer rows.Close()
@@ -106,7 +107,7 @@ func (d *DatabaseDataSource) Read(ctx context.Context, req datasource.ReadReques
 		var owner string
 		var createdAt time.Time
 		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			resp.Diagnostics.AddError("failed to read database", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to read database", err)
 			return
 		}
 		if name == database.Name.ValueString() {

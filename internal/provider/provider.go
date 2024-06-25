@@ -13,6 +13,7 @@ import (
 	"net/http/httputil"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -28,6 +29,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/secret"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/store"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
+	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
@@ -133,12 +135,15 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	if data.APIKey == nil {
-		resp.Diagnostics.AddError("API key is required", "")
+		util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("API key is required"))
 		return
 	}
 	connOptions := []gods.ConnectionOption{gods.WithStaticToken(*data.APIKey)}
 	var sessionID *string
 	if v := os.Getenv("DELTASTREAM_SESSION_ID"); v != "" {
+		if v == "RANDOM" {
+			v = uuid.NewString()
+		}
 		connOptions = append(connOptions, gods.WithSessionID(v))
 		sessionID = ptr.To(v)
 	}
@@ -158,11 +163,11 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	connOptions = append(connOptions, gods.WithServer(server))
 	connector, err := gods.ConnectorWithOptions(ctx, connOptions...)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to configure connection", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "Failed to configure connection", err)
 		return
 	}
 	if data.Organization == nil {
-		resp.Diagnostics.AddError("Organization is required", "")
+		util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("Organization is required"))
 		return
 	}
 	db := sql.OpenDB(connector)

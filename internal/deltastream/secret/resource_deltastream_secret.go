@@ -110,7 +110,7 @@ func (d *SecretResource) Configure(ctx context.Context, req resource.ConfigureRe
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("internal error", "invalid provider data")
+		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -146,13 +146,13 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -174,7 +174,7 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		"CustomProperties": customProps,
 	})
 	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
-		resp.Diagnostics.AddError("failed to create secret", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to create secret", err)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 			})
 		}
 
-		resp.Diagnostics.AddError("failed to create secret", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to create secret", err)
 		return
 	}
 	tflog.Info(ctx, "Secret created", map[string]any{"name": secret.Name.ValueString()})
@@ -245,20 +245,20 @@ func (d *SecretResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP SECRET "%s";`, secret.Name.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidSecret {
-			resp.Diagnostics.AddError("failed to drop secret", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to drop secret", err)
 			return
 		}
 	}
@@ -281,7 +281,7 @@ func (d *SecretResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -290,7 +290,7 @@ func (d *SecretResource) Update(ctx context.Context, req resource.UpdateRequest,
 	if !newSecret.Name.Equal(currentSecret.Name) ||
 		!newSecret.Type.Equal(currentSecret.Type) ||
 		!newSecret.AccessRegion.Equal(currentSecret.AccessRegion) {
-		resp.Diagnostics.AddError("invalid update", "name, type and access region are immutable")
+		util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("name, type and access region are immutable"))
 	}
 
 	// if !newSecret.Description.Equal(currentSecret.Description) {
@@ -304,7 +304,7 @@ func (d *SecretResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	currentSecret, err = d.updateComputed(ctx, conn, currentSecret)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to update state", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 
@@ -322,7 +322,7 @@ func (d *SecretResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -333,7 +333,7 @@ func (d *SecretResource) Read(ctx context.Context, req resource.ReadRequest, res
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidSecret {
 			return
 		}
-		resp.Diagnostics.AddError("failed to update state", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 

@@ -97,7 +97,7 @@ func (d *QueryResource) Configure(ctx context.Context, req resource.ConfigureReq
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("internal error", "invalid provider data")
+		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -142,7 +142,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -153,7 +153,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
@@ -161,28 +161,28 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 	var kind string
 	var descJson string
 	if err := row.Scan(&kind, &descJson); err != nil {
-		resp.Diagnostics.AddError("failed to create relation", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to create relation", err)
 		return
 	}
 
 	if !util.ArrayContains([]string{kind}, []string{"INSERT_INTO"}) {
-		resp.Diagnostics.AddError("planning error", "invalid query type: "+kind)
+		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("invalid query type: %s", kind))
 		return
 	}
 
 	statementPlan := statementPlan{}
 	if err := json.Unmarshal([]byte(descJson), &statementPlan); err != nil {
-		resp.Diagnostics.AddError("failed to parse query plan", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to parse query plan", err)
 		return
 	}
 
 	if statementPlan.Ddl != nil {
-		resp.Diagnostics.AddError("planning error", "invalid query plan")
+		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("invalid query plan"))
 		return
 	}
 
 	if d.cfg.Organization+"."+strings.TrimSpace(query.SinkRelation.ValueString()) != statementPlan.Sink.Fqn {
-		resp.Diagnostics.AddError("planning error", "sink relation mismatch "+query.SinkRelation.ValueString()+" != "+statementPlan.Sink.Fqn)
+		util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("sink relation mismatch %s != %s", query.SinkRelation.ValueString(), statementPlan.Sink.Fqn))
 		return
 	}
 
@@ -200,7 +200,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 			}
 		}
 		if !found {
-			resp.Diagnostics.AddError("planning error", fmt.Sprintf("query uses source relation %s but it is not specified as a source on the resource", source.Fqn))
+			util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("query uses source relation %s but it is not specified as a source on the resource", source.Fqn))
 			return
 		}
 	}
@@ -208,7 +208,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 	artifactDDL := artifactDDL{}
 	row = conn.QueryRowContext(ctx, query.Sql.ValueString())
 	if err := row.Scan(&artifactDDL.Type, &artifactDDL.Name, &artifactDDL.Command, &artifactDDL.Summary); err != nil {
-		resp.Diagnostics.AddError("failed to create relation", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to launch query", err)
 		return
 	}
 	query.QueryID = basetypes.NewStringValue(artifactDDL.Name)
@@ -220,24 +220,26 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 
 		if query.State.ValueString() != "running" {
-			return retry.RetryableError(fmt.Errorf("relation not yet created"))
+			return retry.RetryableError(fmt.Errorf("query not yet running"))
 		}
 
-		if query.State.ValueString() != "errored" {
-			return fmt.Errorf("query creation failed")
+		if query.State.ValueString() == "errored" {
+			return fmt.Errorf("query in errored state")
 		}
 
 		return nil
 	}); err != nil {
+		util.LogError(ctx, resp.Diagnostics, "query failed to start", err)
 		if _, derr := conn.ExecContext(ctx, fmt.Sprintf(`TERMINATE QUERY %s;`, query.QueryID.ValueString())); derr != nil {
-			tflog.Error(ctx, "failed to clean up schema", map[string]any{
+			tflog.Error(ctx, "failed to clean up failed query", map[string]any{
 				"Query ID": query.QueryID.ValueString(),
 				"error":    derr.Error(),
 			})
 		}
+		return
 	}
 
-	tflog.Info(ctx, "Query created", map[string]any{"name": query.QueryID.ValueString()})
+	tflog.Info(ctx, "query created", map[string]any{"name": query.QueryID.ValueString()})
 	resp.Diagnostics.Append(resp.State.Set(ctx, query)...)
 }
 
@@ -289,7 +291,7 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -299,14 +301,14 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		roleName = query.Owner.ValueString()
 	}
 	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`TERMINATE QUERY %s;`, query.QueryID.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidQuery {
-			resp.Diagnostics.AddError("failed to terminate query", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to terminate query", err)
 			return
 		}
 	}
@@ -323,7 +325,7 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 		return retry.RetryableError(fmt.Errorf("query not yet terminated"))
 	}); err != nil {
-		resp.Diagnostics.AddError("failed to cleanup relation", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to cleanup relation", err)
 		return
 	}
 
@@ -346,7 +348,7 @@ func (d *QueryResource) Update(ctx context.Context, req resource.UpdateRequest, 
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -356,11 +358,11 @@ func (d *QueryResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		tflog.Error(ctx, "transfer ownership not yet supported")
 	}
 
-	resp.Diagnostics.AddError("invalid update", "query properties cannot be changed")
+	util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("query properties cannot be changed"))
 
 	currentQuery, err = d.updateComputed(ctx, conn, currentQuery, false)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to update state", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 
@@ -378,7 +380,7 @@ func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
@@ -389,7 +391,7 @@ func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidQuery {
 			return
 		}
-		resp.Diagnostics.AddError("failed to update state", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 

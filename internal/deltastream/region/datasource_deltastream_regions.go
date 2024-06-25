@@ -5,6 +5,7 @@ package region
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
@@ -32,7 +33,7 @@ func (d *RegionsDataSource) Configure(ctx context.Context, req datasource.Config
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("internal error", "invalid provider data")
+		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -73,19 +74,19 @@ func (d *RegionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	rows, err := conn.QueryContext(ctx, `LIST REGIONS;`)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list region", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to list region", err)
 		return
 	}
 	defer rows.Close()
@@ -96,7 +97,7 @@ func (d *RegionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		var cloud string
 		var region string
 		if err := rows.Scan(&name, &cloud, &region); err != nil {
-			resp.Diagnostics.AddError("failed to read region", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to read region", err)
 			return
 		}
 		items = append(items, RegionDataSourceData{

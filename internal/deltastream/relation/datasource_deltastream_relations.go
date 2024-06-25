@@ -34,7 +34,7 @@ func (d *RelationsDataSource) Configure(ctx context.Context, req datasource.Conf
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		resp.Diagnostics.AddError("provider error", "invalid provider data")
+		util.LogError(ctx, resp.Diagnostics, "provider error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -122,19 +122,19 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		resp.Diagnostics.AddError("failed to connect", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics.AddError("failed to set sql context", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
 
 	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST RELATIONS IN SCHEMA "%s"."%s";`, rels.Database.ValueString(), rels.Schema.ValueString()))
 	if err != nil {
-		resp.Diagnostics.AddError("failed to list schemas", err.Error())
+		util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)
 		return
 	}
 	defer rows.Close()
@@ -156,7 +156,7 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 		)
 
 		if err := rows.Scan(&name, &kind, &owner, &state, &propertiesJSON, &createdAt, &updatedAt); err != nil {
-			resp.Diagnostics.AddError("failed to read relation", err.Error())
+			util.LogError(ctx, resp.Diagnostics, "failed to read relation", err)
 			return
 		}
 		rel.Name = basetypes.NewStringValue(name)

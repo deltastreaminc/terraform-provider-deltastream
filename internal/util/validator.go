@@ -39,7 +39,7 @@ func (v UrlsValidator) ValidateString(ctx context.Context, req validator.StringR
 	for _, u := range uris {
 		_, err := url.Parse(u)
 		if err != nil {
-			resp.Diagnostics.AddError("invalid uri", fmt.Sprintf("%s is not a valid uri: %s", u, err.Error()))
+			LogError(ctx, resp.Diagnostics, fmt.Sprintf("%s is not a valid uri", u), err)
 		}
 	}
 }

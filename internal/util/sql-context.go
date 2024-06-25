@@ -59,7 +59,7 @@ func SetSqlContext(ctx context.Context, conn *sql.Conn, roleName, dbName, schema
 }
 
 func GetConnection(ctx context.Context, db *sql.DB, sessionID *string, org, roleName string) (context.Context, *sql.Conn, error) {
-	ctx = tflog.SetField(ctx, "session id", ptr.Deref(sessionID, ""))
+	ctx = tflog.SetField(ctx, "session-id", ptr.Deref(sessionID, ""))
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return ctx, nil, err
