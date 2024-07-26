@@ -10,7 +10,6 @@ on:
 jobs:
   build:
     name: pr-test
-    # runs-on: ubuntu-latest
     runs-on: dev-workstations
 
     steps:
