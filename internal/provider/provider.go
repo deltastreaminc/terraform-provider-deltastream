@@ -28,6 +28,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/region"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/relation"
 	dsschema "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema"
+	schemaregistry "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema_registry"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/secret"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/store"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
@@ -226,6 +227,7 @@ func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.R
 		secret.NewSecretResource,
 		relation.NewRelationResource,
 		query.NewQueryResource,
+		schemaregistry.NewSchemaRegistryResource,
 	}
 }
 
@@ -250,6 +252,9 @@ func (p *DeltaStreamProvider) DataSources(ctx context.Context) []func() datasour
 
 		secret.NewSecretDataSource,
 		secret.NewSecretsDataSources,
+
+		schemaregistry.NewSchemaRegistryDataSource,
+		schemaregistry.NewSchemaRegistriesDataSource,
 	}
 }
 

@@ -627,6 +627,19 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 			return
 		}
 	}
+
+	for {
+		store, err = d.updateComputed(ctx, conn, store)
+		if err != nil {
+			var godsErr gods.ErrSQLError
+			if errors.As(err, &godsErr) && godsErr.SQLCode != gods.SqlStateInvalidStore {
+				resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+				return
+			}
+			break
+		}
+	}
+
 	tflog.Info(ctx, "Store deleted", map[string]any{"name": store.Name.ValueString()})
 }
 

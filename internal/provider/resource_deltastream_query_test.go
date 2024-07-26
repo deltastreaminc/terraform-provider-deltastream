@@ -12,7 +12,6 @@ import (
 )
 
 func TestAccDeltaStreamQuery(t *testing.T) {
-	t.SkipNow()
 	creds, err := util.LoadTestEnv()
 	if err != nil {
 		t.Fatalf("Failed to load test environment: %v", err)
