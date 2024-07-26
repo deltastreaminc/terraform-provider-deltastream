@@ -109,6 +109,20 @@ func (d *debugTransport) RoundTrip(h *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
+type httpTransport struct {
+	r         http.RoundTripper
+	sessionID *string
+}
+
+func (d *httpTransport) RoundTrip(h *http.Request) (*http.Response, error) {
+	userAgent := "terraform-provider-deltastream"
+	if d.sessionID != nil {
+		userAgent += " session/" + *d.sessionID
+	}
+	h.Header.Set("User-Agent", userAgent)
+	return d.r.RoundTrip(h)
+}
+
 func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var data DeltaStreamProviderModel
 
@@ -156,19 +170,13 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		sessionID = ptr.To(v)
 	}
 
-	transport := http.RoundTripper(&http.Transport{
-		Dial: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 20 * time.Second,
-		}).Dial,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 1 * time.Minute,
-		ExpectContinueTimeout: 1 * time.Second,
-		IdleConnTimeout:       5 * time.Minute,
-	})
-
+	tlsConfig := &tls.Config{}
 	if data.InsecureSkipVerify != nil && *data.InsecureSkipVerify {
-		transport = &http.Transport{
+		tlsConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+
+	transport := http.RoundTripper(&httpTransport{
+		r: &http.Transport{
 			Dial: (&net.Dialer{
 				Timeout:   30 * time.Second,
 				KeepAlive: 20 * time.Second,
@@ -177,9 +185,10 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 			ResponseHeaderTimeout: 1 * time.Minute,
 			ExpectContinueTimeout: 1 * time.Second,
 			IdleConnTimeout:       5 * time.Minute,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-		}
-	}
+			TLSClientConfig:       tlsConfig,
+		},
+		sessionID: sessionID,
+	})
 
 	if debug := os.Getenv("DELTASTREAM_DEBUG"); debug != "" {
 		transport = &debugTransport{
