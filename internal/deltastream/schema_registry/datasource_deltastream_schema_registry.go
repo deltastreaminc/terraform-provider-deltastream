@@ -97,11 +97,6 @@ func (d *SchemaRegistryDataSource) Read(ctx context.Context, req datasource.Read
 	}
 	defer conn.Close()
 
-	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
-
 	rows, err := conn.QueryContext(ctx, `LIST SCHEMA_REGISTRIES;`)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schema registry", err)

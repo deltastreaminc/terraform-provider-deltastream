@@ -182,17 +182,12 @@ func (d *SchemaRegistryResource) Create(ctx context.Context, req resource.Create
 		roleName = sr.Owner.ValueString()
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
-
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
 
 	var srtype string
 	var confluentProperties ConfluentProperties
@@ -225,7 +220,11 @@ func (d *SchemaRegistryResource) Create(ctx context.Context, req resource.Create
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
 		sr, err = d.updateComputed(ctx, conn, sr)
 		if err != nil {
-			return err
+			var godsErr gods.ErrSQLError
+			if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidSchemaRegistry {
+				return err
+			}
+			return retry.RetryableError(err)
 		}
 		if sr.State.ValueString() != "ready" {
 			return retry.RetryableError(fmt.Errorf("schema registry never transitioned to ready"))
@@ -289,17 +288,12 @@ func (d *SchemaRegistryResource) Delete(ctx context.Context, req resource.Delete
 		roleName = sr.Owner.ValueString()
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
-
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP SCHEMA_REGISTRY "%s";`, sr.Name.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
@@ -312,64 +306,31 @@ func (d *SchemaRegistryResource) Delete(ctx context.Context, req resource.Delete
 }
 
 func (d *SchemaRegistryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "update not supported", fmt.Errorf("schema registry updates not supported"))
+}
+
+func (d *SchemaRegistryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var sr SchemaRegistryResourceData
-	var newSr SchemaRegistryResourceData
 
 	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &newSr)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
 	resp.Diagnostics.Append(req.State.Get(ctx, &sr)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	roleName := d.cfg.Role
+	if !sr.Owner.IsNull() && !sr.Owner.IsUnknown() {
+		roleName = sr.Owner.ValueString()
+	}
+
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
-
-	// all changes to secret other than ownership are disallowed
-	if !newSr.Name.Equal(sr.Name) ||
-		!newSr.Type.Equal(sr.Type) ||
-		!newSr.AccessRegion.Equal(sr.AccessRegion) {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("name, type and access region are immutable"))
-	}
-
-	if !newSr.Owner.IsNull() && !newSr.Owner.IsUnknown() && newSr.Owner.Equal(sr.Owner) {
-		// Transfer ownership
-		tflog.Error(ctx, "transfer ownership not yet supported")
-	}
 
 	sr, err = d.updateComputed(ctx, conn, sr)
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
-		return
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, sr)...)
-}
-
-func (d *SchemaRegistryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var Secret SchemaRegistryResourceData
-
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &Secret)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
-		return
-	}
-	defer conn.Close()
-
-	Secret, err = d.updateComputed(ctx, conn, Secret)
 	if err != nil {
 		var godsErr gods.ErrSQLError
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidSchemaRegistry {
@@ -379,5 +340,5 @@ func (d *SchemaRegistryResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, Secret)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, sr)...)
 }

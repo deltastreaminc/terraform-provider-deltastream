@@ -102,11 +102,6 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer conn.Close()
 
-	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
-
 	parentPath := []string{}
 	if !entityData.ParentPath.IsNull() && !entityData.ParentPath.IsUnknown() {
 		resp.Diagnostics.Append(entityData.ParentPath.ElementsAs(ctx, &parentPath, false)...)

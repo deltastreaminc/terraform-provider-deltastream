@@ -150,22 +150,17 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
-		return
-	}
-	defer conn.Close()
-
 	roleName := d.cfg.Role
 	if !query.Owner.IsNull() && !query.Owner.IsUnknown() {
 		roleName = query.Owner.ValueString()
 	}
 
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
+	defer conn.Close()
 
 	row := conn.QueryRowContext(ctx, "DESCRIBE "+query.Sql.ValueString())
 	var kind string
@@ -226,7 +221,11 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*10, retry.NewConstant(time.Second*15)), func(ctx context.Context) (err error) {
 		query, err = d.updateComputed(ctx, conn, query, false)
 		if err != nil {
-			return err
+			var godsErr gods.ErrSQLError
+			if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidQuery {
+				return nil
+			}
+			return retry.RetryableError(err)
 		}
 
 		if query.State.ValueString() == "running" {
@@ -303,21 +302,17 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	roleName := d.cfg.Role
+	if !query.Owner.IsNull() && !query.Owner.IsUnknown() {
+		roleName = query.Owner.ValueString()
+	}
+
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
-
-	roleName := d.cfg.Role
-	if !query.Owner.IsNull() && !query.Owner.IsUnknown() {
-		roleName = query.Owner.ValueString()
-	}
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`TERMINATE QUERY %s;`, query.QueryID.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError
@@ -347,40 +342,7 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 
 func (d *QueryResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var currentQuery QueryResourceData
-	var newQuery QueryResourceData
-
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &newQuery)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	resp.Diagnostics.Append(req.State.Get(ctx, &currentQuery)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
-		return
-	}
-	defer conn.Close()
-
-	if !newQuery.Owner.IsNull() && !newQuery.Owner.IsUnknown() && newQuery.Owner.Equal(currentQuery.Owner) {
-		// Transfer ownership
-		tflog.Error(ctx, "transfer ownership not yet supported")
-	}
-
-	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("query properties cannot be changed"))
-
-	currentQuery, err = d.updateComputed(ctx, conn, currentQuery, false)
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
-		return
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, currentQuery)...)
+	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "update not supported", fmt.Errorf("query updates not supported"))
 }
 
 func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -392,7 +354,12 @@ func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	roleName := d.cfg.Role
+	if !query.Owner.IsNull() && !query.Owner.IsUnknown() {
+		roleName = query.Owner.ValueString()
+	}
+
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return

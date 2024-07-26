@@ -116,11 +116,6 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer conn.Close()
 
-	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
-
 	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST RELATIONS IN SCHEMA "%s"."%s";`, rel.Database.ValueString(), rel.Schema.ValueString()))
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)

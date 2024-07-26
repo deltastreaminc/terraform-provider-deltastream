@@ -159,19 +159,19 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	roleName := d.cfg.Role
+	if !relation.Owner.IsNull() && !relation.Owner.IsUnknown() {
+		roleName = relation.Owner.ValueString()
+	}
+
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
-	roleName := d.cfg.Role
-	if !relation.Owner.IsNull() && !relation.Owner.IsUnknown() {
-		roleName = relation.Owner.ValueString()
-	}
-
-	if err := util.SetSqlContext(ctx, conn, &roleName, relation.Database.ValueStringPointer(), relation.Schema.ValueStringPointer(), relation.Store.ValueStringPointer()); err != nil {
+	if err := util.SetSqlContext(ctx, conn, relation.Database.ValueStringPointer(), relation.Schema.ValueStringPointer(), relation.Store.ValueStringPointer()); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
 		return
 	}
@@ -289,21 +289,17 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	roleName := d.cfg.Role
+	if !relation.Owner.IsNull() && !relation.Owner.IsUnknown() {
+		roleName = relation.Owner.ValueString()
+	}
+
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
-
-	roleName := d.cfg.Role
-	if !relation.Owner.IsNull() && !relation.Owner.IsUnknown() {
-		roleName = relation.Owner.ValueString()
-	}
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
 
 	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP RELATION %s;`, relation.FQN.ValueString())); err != nil {
 		var sqlErr gods.ErrSQLError

@@ -253,18 +253,13 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	roleName := d.cfg.Role
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
-
-	roleName := d.cfg.Role
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
 
 	entityPath := []string{}
 	resp.Diagnostics.Append(entity.EntityPath.ElementsAs(ctx, &entityPath, false)...)
@@ -349,18 +344,13 @@ func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	roleName := d.cfg.Role
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
-
-	roleName := d.cfg.Role
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
 
 	entityPath := []string{}
 	resp.Diagnostics.Append(entity.EntityPath.ElementsAs(ctx, &entityPath, false)...)
@@ -381,28 +371,7 @@ func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest,
 }
 
 func (d *EntityResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var currentEntity EntityResourceData
-	var newEntity EntityResourceData
-
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &newEntity)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	resp.Diagnostics.Append(req.State.Get(ctx, &currentEntity)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
-		return
-	}
-	defer conn.Close()
-
-	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("entity cannot be changed"))
-	resp.Diagnostics.Append(resp.State.Set(ctx, currentEntity)...)
+	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "update not supported", fmt.Errorf("store entity update not supported"))
 }
 
 func (d *EntityResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -429,12 +398,6 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		return
 	}
 	defer conn.Close()
-
-	roleName := d.cfg.Role
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		diags.AddError("failed to set sql context", err.Error())
-		return
-	}
 
 	entityPath := []string{}
 	diags.Append(entity.EntityPath.ElementsAs(ctx, &entityPath, false)...)
@@ -469,7 +432,7 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		var keyDescriptor *string
 		var valueDescriptor *string
 		var configJSON string
-		if err := rows.Scan(&discard, &topicPartitions, &topicReplicas, &keyDescriptor, &valueDescriptor, &configJSON); err != nil {
+		if err := rows.Scan(&discard, &discard, &topicPartitions, &topicReplicas, &keyDescriptor, &valueDescriptor, &configJSON); err != nil {
 			diags.AddError("failed to read entity", err.Error())
 			return
 		}
@@ -594,7 +557,7 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 func getStoreType(ctx context.Context, conn *sql.Conn, storeName string) (string, error) {
 	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
 	if err != nil {
-		return "", fmt.Errorf("failed to list stores: %w", err)
+		return "", fmt.Errorf("failed to load store: %w", err)
 	}
 	defer rows.Close()
 
