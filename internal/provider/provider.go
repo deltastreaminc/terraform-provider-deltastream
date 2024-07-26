@@ -92,19 +92,27 @@ func (p *DeltaStreamProvider) Schema(ctx context.Context, req provider.SchemaReq
 }
 
 type debugTransport struct {
-	r      http.RoundTripper
-	stderr io.Writer
+	r         http.RoundTripper
+	stderr    io.Writer
+	sessionID *string
 }
 
 func (d *debugTransport) RoundTrip(h *http.Request) (*http.Response, error) {
+	requestID := uuid.New().String()
+	userAgent := "terraform-provider-deltastream request/" + requestID
+	if d.sessionID != nil {
+		userAgent += " session/" + *d.sessionID
+	}
+	h.Header.Set("User-Agent", userAgent)
+
 	dump, _ := httputil.DumpRequestOut(h, true)
-	fmt.Fprintf(d.stderr, "request: %s\n", string(dump))
+	fmt.Fprintf(d.stderr, "request (request %s) (session %s): %s\n", requestID, ptr.Deref(d.sessionID, ""), string(dump))
 	resp, err := d.r.RoundTrip(h)
 	if resp != nil {
 		dump, _ = httputil.DumpResponse(resp, true)
-		fmt.Fprintf(d.stderr, "response: %s\n", string(dump))
+		fmt.Fprintf(d.stderr, "response (request %s) (session %s): %s\n", requestID, ptr.Deref(d.sessionID, ""), string(dump))
 	} else {
-		fmt.Fprintf(d.stderr, "response is nil\n")
+		fmt.Fprintf(d.stderr, "response is nil (request %s) (session %s)\n", requestID, ptr.Deref(d.sessionID, ""))
 	}
 	return resp, err
 }
@@ -175,25 +183,30 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		tlsConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
+	t := &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 20 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 1 * time.Minute,
+		ExpectContinueTimeout: 1 * time.Second,
+		IdleConnTimeout:       5 * time.Minute,
+		TLSClientConfig:       tlsConfig,
+		DisableKeepAlives:     true,
+		MaxIdleConnsPerHost:   -1,
+	}
+
 	transport := http.RoundTripper(&httpTransport{
-		r: &http.Transport{
-			Dial: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 20 * time.Second,
-			}).Dial,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 1 * time.Minute,
-			ExpectContinueTimeout: 1 * time.Second,
-			IdleConnTimeout:       5 * time.Minute,
-			TLSClientConfig:       tlsConfig,
-		},
+		r:         t,
 		sessionID: sessionID,
 	})
 
 	if debug := os.Getenv("DELTASTREAM_DEBUG"); debug != "" {
 		transport = &debugTransport{
-			r:      transport,
-			stderr: os.Stderr,
+			r:         t,
+			stderr:    os.Stderr,
+			sessionID: sessionID,
 		}
 	}
 
