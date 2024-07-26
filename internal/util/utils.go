@@ -44,6 +44,6 @@ func LoadTestEnv() (map[string]string, error) {
 	os.Setenv("DELTASTREAM_ORGANIZATION", creds["org"])
 	os.Setenv("DELTASTREAM_ROLE", creds["role"])
 	os.Setenv("DELTASTREAM_SERVER", creds["server"]+"/v2")
-	// os.Setenv("DELTASTREAM_DEBUG", "1")
+	os.Setenv("DELTASTREAM_INSECURE_SKIP_VERIFY", creds["insecure_skip_verify"])
 	return creds, err
 }

@@ -19,6 +19,11 @@ var IdentifierValidators = []validator.String{stringvalidator.RegexMatches(
 	"must contain only alphanumeric characters, space, - and _",
 )}
 
+var UUIDValidators = []validator.String{stringvalidator.RegexMatches(
+	regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[4][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`),
+	"must contain only alphanumeric characters, space, - and _",
+)}
+
 type UrlsValidator struct{}
 
 func (v UrlsValidator) Description(ctx context.Context) string {

@@ -1,36 +1,42 @@
 provider "deltastream" {}
 
-data "deltastream_regions" "all" {}
+variable "region" {
+  type = string
+}
+
+data "deltastream_region" "region" {
+  name = var.region
+}
 
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
-variable "msk_url" {
+variable "pub_msk_iam_uri" {
   type = string
 }
 
-variable "msk_iam_role" {
+variable "pub_msk_iam_role" {
   type = string
 }
 
-variable "msk_region" {
+variable "pub_msk_region" {
   type = string
 }
 
 resource "deltastream_store" "kafka_with_iam" {
-  name          = "kafka_with_iam_${random_id.suffix.hex}"
-  access_region = data.deltastream_regions.all.items[0].name
+  name          = "query_msk_iam_kafka_source_${random_id.suffix.hex}"
+  access_region = data.deltastream_region.region.name
   kafka = {
-    uris               = var.msk_url
+    uris               = var.pub_msk_iam_uri
     sasl_hash_function = "AWS_MSK_IAM"
-    msk_iam_role_arn   = var.msk_iam_role
-    msk_aws_region     = var.msk_region
+    msk_iam_role_arn   = var.pub_msk_iam_role
+    msk_aws_region     = var.pub_msk_region
   }
 }
 
 resource "deltastream_database" "db" {
-  name = "db_${random_id.suffix.hex}"
+  name = "query_msk_iam_database_${random_id.suffix.hex}"
 }
 
 resource "deltastream_relation" "pageviews" {
@@ -38,13 +44,13 @@ resource "deltastream_relation" "pageviews" {
   schema   = "public"
   store    = deltastream_store.kafka_with_iam.name
   sql      = <<EOF
-    CREATE STREAM PAGEVIEWS_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
+    CREATE STREAM query_msk_iam_pageviews_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
   EOF
 }
 
 resource "deltastream_entity" "pageviews_6" {
   store       = deltastream_store.kafka_with_iam.name
-  entity_path = ["pageviews_6_${random_id.suffix.hex}"]
+  entity_path = ["query_msk_iam_pageviews_6_${random_id.suffix.hex}"]
   kafka_properties = {
     topic_partitions = 3
     topic_replicas   = 3
@@ -56,7 +62,7 @@ resource "deltastream_relation" "pageviews_6" {
   schema   = "public"
   store    = deltastream_store.kafka_with_iam.name
   sql      = <<EOF
-    CREATE STREAM PAGEVIEWS_6_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='${deltastream_entity.pageviews_6.entity_path[0]}', 'value.format'='json');
+    CREATE STREAM query_msk_iam_pageviews_6_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='${deltastream_entity.pageviews_6.entity_path[0]}', 'value.format'='json');
   EOF
 }
 
@@ -68,10 +74,10 @@ resource "deltastream_query" "insert_into_pageviews_6" {
   EOF
 }
 
-# data "deltastream_entity_data" "pageviews_6" {
-#   depends_on     = [deltastream_query.insert_into_pageviews_6]
-#   store          = deltastream_store.kafka_with_iam.name
-#   entity_path    = deltastream_entity.pageviews_6.entity_path
-#   num_rows       = 3
-#   from_beginning = true
-# }
+data "deltastream_entity_data" "pageviews_6" {
+  depends_on     = [deltastream_query.insert_into_pageviews_6]
+  store          = deltastream_store.kafka_with_iam.name
+  entity_path    = deltastream_entity.pageviews_6.entity_path
+  num_rows       = 3
+  from_beginning = true
+}

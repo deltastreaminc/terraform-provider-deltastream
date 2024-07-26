@@ -9,11 +9,11 @@ resource "random_id" "id2" {
 }
 
 resource "deltastream_database" "db1" {
-  name          = "db_${random_id.id1.hex}"
+  name          = "database_${random_id.id1.hex}"
 }
 
 resource "deltastream_database" "db2" {
-  name          = "db_${random_id.id2.hex}"
+  name          = "database_${random_id.id2.hex}"
 }
 
 data "deltastream_database" "db1" {

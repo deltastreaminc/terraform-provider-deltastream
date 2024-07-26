@@ -9,9 +9,11 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -26,6 +28,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/region"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/relation"
 	dsschema "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema"
+	schemaregistry "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema_registry"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/secret"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/store"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
@@ -71,12 +74,14 @@ func providerSchema() schema.Schema {
 				Optional:    true,
 			},
 			"organization": schema.StringAttribute{
-				Description: "DeltaStream organization Name or ID. Can also be set via the DELTASTREAM_ORGANIZATION environment variable.",
+				Description: "DeltaStream organization ID. Can also be set via the DELTASTREAM_ORGANIZATION environment variable.",
 				Optional:    true,
+				Validators:  util.UUIDValidators,
 			},
 			"role": schema.StringAttribute{
 				Description: "DeltaStream role to use for managing resources and queries. Can also be set via the DELTASTREAM_ROLE environment variable. Default: sysadmin",
 				Optional:    true,
+				Validators:  util.IdentifierValidators,
 			},
 		},
 	}
@@ -87,21 +92,43 @@ func (p *DeltaStreamProvider) Schema(ctx context.Context, req provider.SchemaReq
 }
 
 type debugTransport struct {
-	r      http.RoundTripper
-	stderr io.Writer
+	r         http.RoundTripper
+	stderr    io.Writer
+	sessionID *string
 }
 
 func (d *debugTransport) RoundTrip(h *http.Request) (*http.Response, error) {
+	requestID := uuid.New().String()
+	userAgent := "terraform-provider-deltastream request/" + requestID
+	if d.sessionID != nil {
+		userAgent += " session/" + *d.sessionID
+	}
+	h.Header.Set("User-Agent", userAgent)
+
 	dump, _ := httputil.DumpRequestOut(h, true)
-	fmt.Fprintf(d.stderr, "request: %s\n", string(dump))
+	fmt.Fprintf(d.stderr, "request (request %s) (session %s): %s\n", requestID, ptr.Deref(d.sessionID, ""), string(dump))
 	resp, err := d.r.RoundTrip(h)
 	if resp != nil {
 		dump, _ = httputil.DumpResponse(resp, true)
-		fmt.Fprintf(d.stderr, "response: %s\n", string(dump))
+		fmt.Fprintf(d.stderr, "response (request %s) (session %s): %s\n", requestID, ptr.Deref(d.sessionID, ""), string(dump))
 	} else {
-		fmt.Fprintf(d.stderr, "response is nil\n")
+		fmt.Fprintf(d.stderr, "response is nil (request %s) (session %s)\n", requestID, ptr.Deref(d.sessionID, ""))
 	}
 	return resp, err
+}
+
+type httpTransport struct {
+	r         http.RoundTripper
+	sessionID *string
+}
+
+func (d *httpTransport) RoundTrip(h *http.Request) (*http.Response, error) {
+	userAgent := "terraform-provider-deltastream"
+	if d.sessionID != nil {
+		userAgent += " session/" + *d.sessionID
+	}
+	h.Header.Set("User-Agent", userAgent)
+	return d.r.RoundTrip(h)
 }
 
 func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
@@ -125,6 +152,9 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	if debug := os.Getenv("DELTASTREAM_DEBUG"); data.InsecureSkipVerify == nil && debug != "" {
 		data.InsecureSkipVerify = ptr.To(true)
 	}
+	if insecure := os.Getenv("DELTASTREAM_INSECURE_SKIP_VERIFY"); data.InsecureSkipVerify == nil && insecure != "" {
+		data.InsecureSkipVerify = ptr.To(true)
+	}
 
 	server := "https://api.deltastream.io/v2"
 	if os.Getenv("DELTASTREAM_SERVER") != "" {
@@ -135,7 +165,7 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	if data.APIKey == nil {
-		util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("API key is required"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("API key is required"))
 		return
 	}
 	connOptions := []gods.ConnectionOption{gods.WithStaticToken(*data.APIKey)}
@@ -148,26 +178,50 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		sessionID = ptr.To(v)
 	}
 
+	tlsConfig := &tls.Config{}
 	if data.InsecureSkipVerify != nil && *data.InsecureSkipVerify {
-		httpClient := &http.Client{
-			Transport: &debugTransport{
-				r: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				},
-				stderr: os.Stderr,
-			},
-		}
-		connOptions = append(connOptions, gods.WithHTTPClient(httpClient))
+		tlsConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	connOptions = append(connOptions, gods.WithServer(server))
+	t := &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 20 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 1 * time.Minute,
+		ExpectContinueTimeout: 1 * time.Second,
+		IdleConnTimeout:       5 * time.Minute,
+		TLSClientConfig:       tlsConfig,
+		DisableKeepAlives:     true,
+		MaxIdleConnsPerHost:   -1,
+	}
+
+	transport := http.RoundTripper(&httpTransport{
+		r:         t,
+		sessionID: sessionID,
+	})
+
+	if debug := os.Getenv("DELTASTREAM_DEBUG"); debug != "" {
+		transport = &debugTransport{
+			r:         t,
+			stderr:    os.Stderr,
+			sessionID: sessionID,
+		}
+	}
+
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+
+	connOptions = append(connOptions, gods.WithServer(server), gods.WithHTTPClient(httpClient))
 	connector, err := gods.ConnectorWithOptions(ctx, connOptions...)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "Failed to configure connection", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "Failed to configure connection", err)
 		return
 	}
 	if data.Organization == nil {
-		util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("Organization is required"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("organization is required"))
 		return
 	}
 	db := sql.OpenDB(connector)
@@ -195,6 +249,7 @@ func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.R
 		secret.NewSecretResource,
 		relation.NewRelationResource,
 		query.NewQueryResource,
+		schemaregistry.NewSchemaRegistryResource,
 	}
 }
 
@@ -219,6 +274,9 @@ func (p *DeltaStreamProvider) DataSources(ctx context.Context) []func() datasour
 
 		secret.NewSecretDataSource,
 		secret.NewSecretsDataSources,
+
+		schemaregistry.NewSchemaRegistryDataSource,
+		schemaregistry.NewSchemaRegistriesDataSource,
 	}
 }
 

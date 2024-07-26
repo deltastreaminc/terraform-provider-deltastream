@@ -52,7 +52,7 @@ type KafkaProperties struct {
 	TlsCaCertFile           basetypes.StringValue `tfsdk:"tls_ca_cert_file"`
 }
 
-func (_ KafkaProperties) AttributeTypes() map[string]attr.Type {
+func (KafkaProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"uris":                       basetypes.StringType{},
 		"schema_registry_name":       basetypes.StringType{},
@@ -383,7 +383,7 @@ func (d *StoreResource) Configure(ctx context.Context, req resource.ConfigureReq
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -445,13 +445,6 @@ const createStatement = `CREATE STORE "{{.Name}}" WITH(
 func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var store StoreResourceData
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
-	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
-		return
-	}
-	defer conn.Close()
-
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &store)...)
 	if resp.Diagnostics.HasError() {
@@ -463,10 +456,12 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		roleName = store.Owner.ValueString()
 	}
 
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
+	defer conn.Close()
 
 	var kafkaProperties KafkaProperties
 	var confluentKafkaProperties ConfleuntKafkaProperties
@@ -507,7 +502,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		stype = "POSTGRESQL"
 		resp.Diagnostics.Append(store.Postgres.As(ctx, &postgresProperties, basetypes.ObjectAsOptions{})...)
 	default:
-		util.LogError(ctx, resp.Diagnostics, "invalid store", fmt.Errorf("must specify atleast one store type properties"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid store", fmt.Errorf("must specify atleast one store type properties"))
 	}
 	if resp.Diagnostics.HasError() {
 		return
@@ -525,12 +520,12 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		"Databricks":     databricksProperties,
 		"Postgres":       postgresProperties,
 	}); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to render store sql", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to render store sql", err)
 		return
 	}
 	dsql := b.String()
 	if _, err := conn.ExecContext(ctx, dsql); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
 		return
 	}
 
@@ -555,7 +550,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 			}
 		}
 
-		util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
 		return
 	}
 	tflog.Info(ctx, "Store created", map[string]any{"name": store.Name.ValueString()})
@@ -599,13 +594,6 @@ func (d *StoreResource) updateComputed(ctx context.Context, conn *sql.Conn, stor
 func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var store StoreResourceData
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
-	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
-		return
-	}
-	defer conn.Close()
-
 	resp.Diagnostics.Append(req.State.Get(ctx, &store)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -615,86 +603,63 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	if !store.Owner.IsNull() && !store.Owner.IsUnknown() {
 		roleName = store.Owner.ValueString()
 	}
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP STORE "%s";`, store.Name.ValueString())); err != nil {
-		var sqlErr gods.ErrSQLError
-		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidStore {
-			util.LogError(ctx, resp.Diagnostics, "failed to drop store", err)
-			return
-		}
-	}
-	tflog.Info(ctx, "Store deleted", map[string]any{"name": store.Name.ValueString()})
-}
-
-func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var currentStore StoreResourceData
-	var newStore StoreResourceData
-
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &newStore)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	resp.Diagnostics.Append(req.State.Get(ctx, &currentStore)...)
-	if resp.Diagnostics.HasError() {
-		return
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP STORE "%s";`, store.Name.ValueString())); err != nil {
+		var sqlErr gods.ErrSQLError
+		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidStore {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to drop store", err)
+			return
+		}
 	}
 
-	// all changes to store other than ownership are disallowed
-	if !newStore.Name.Equal(currentStore.Name) {
-		util.LogError(ctx, resp.Diagnostics, "invalid update", fmt.Errorf("store name cannot be changed"))
+	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
+		store, err = d.updateComputed(ctx, conn, store)
+		if err != nil {
+			var godsErr gods.ErrSQLError
+			if errors.As(err, &godsErr) && godsErr.SQLCode != gods.SqlStateInvalidStore {
+				return retry.RetryableError(err)
+			}
+			return nil
+		}
+		return retry.RetryableError(fmt.Errorf("timedout waiting for store to be deleted"))
+	}); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete store", err)
 	}
 
-	if !newStore.Owner.IsNull() && !newStore.Owner.IsUnknown() && newStore.Owner.Equal(currentStore.Owner) {
-		// Transfer ownership
-		tflog.Error(ctx, "transfer ownership not yet supported")
-	}
+	tflog.Info(ctx, "Store deleted", map[string]any{"name": store.Name.ValueString()})
+}
 
-	currentStore, err = d.updateComputed(ctx, conn, currentStore)
-	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
-		return
-	}
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, currentStore)...)
+func (d *StoreResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "update not supported", fmt.Errorf("store update not supported"))
 }
 
 func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var store StoreResourceData
 
-	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
-	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+	// Read Terraform plan data into the model
+	resp.Diagnostics.Append(req.State.Get(ctx, &store)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
-	defer conn.Close()
 
 	roleName := d.cfg.Role
 	if !store.Owner.IsNull() && !store.Owner.IsUnknown() {
 		roleName = store.Owner.ValueString()
 	}
 
-	if err := util.SetSqlContext(ctx, conn, &roleName, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
+	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, roleName)
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
-
-	// Read Terraform plan data into the model
-	resp.Diagnostics.Append(req.State.Get(ctx, &store)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	defer conn.Close()
 
 	store, err = d.updateComputed(ctx, conn, store)
 	if err != nil {
@@ -702,7 +667,7 @@ func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		if errors.As(err, &godsErr) && godsErr.SQLCode != gods.SqlStateInvalidStore {
 			return
 		}
-		util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)
 		return
 	}
 

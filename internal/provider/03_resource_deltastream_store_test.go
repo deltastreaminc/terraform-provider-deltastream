@@ -27,18 +27,17 @@ func TestAccDeltaStreamStore(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/store_kafka_sasl.tf"),
 			ConfigVariables: config.Variables{
-				"kafka_url":           config.StringVariable(creds["confluent-kafka-uri"]),
-				"kafka_sasl_username": config.StringVariable(creds["confluent-kafka-username"]),
-				"kafka_sasl_password": config.StringVariable(creds["confluent-kafka-password"]),
+				"region":           config.StringVariable(creds["region"]),
+				"pub_msk_uri":      config.StringVariable(creds["pub_msk_uri"]),
+				"pub_msk_username": config.StringVariable(creds["pub_msk_username"]),
+				"pub_msk_password": config.StringVariable(creds["pub_msk_password"]),
 			},
 			Check: resource.ComposeTestCheckFunc(
 				// resources
 				resource.TestCheckResourceAttr("deltastream_store.kafka_with_sasl", "state", "ready"),
-				resource.TestCheckResourceAttr("deltastream_store.confluent_kafka_with_sasl", "state", "ready"),
 				resource.ComposeTestCheckFunc(func(s *terraform.State) error {
 					s1Name := s.RootModule().Resources["deltastream_store.kafka_with_sasl"].Primary.Attributes["name"]
-					s2Name := s.RootModule().Resources["deltastream_store.confluent_kafka_with_sasl"].Primary.Attributes["name"]
-					sNames := []string{s1Name, s2Name}
+					sNames := []string{s1Name}
 
 					listNames := []string{}
 					r := regexp.MustCompile("items.[0-9]+.name")
@@ -67,26 +66,17 @@ func TestAccDeltaStreamStore(t *testing.T) {
 				resource.TestCheckResourceAttrPair("deltastream_store.kafka_with_sasl", "kafka.tls_verify_server_hostname", "data.deltastream_store.kafka_with_sasl", "kafka.tls_verify_server_hostname"),
 				resource.TestCheckResourceAttrPair("deltastream_store.kafka_with_sasl", "kafka.schema_registry_name", "data.deltastream_store.kafka_with_sasl", "kafka.schema_registry_name"),
 
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "access_region", "data.deltastream_store.confluent_kafka_with_sasl", "access_region"),
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "type", "data.deltastream_store.confluent_kafka_with_sasl", "type"),
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "owner", "data.deltastream_store.confluent_kafka_with_sasl", "owner"),
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "state", "data.deltastream_store.confluent_kafka_with_sasl", "state"),
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "updated_at", "data.deltastream_store.confluent_kafka_with_sasl", "updated_at"),
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "created_at", "data.deltastream_store.confluent_kafka_with_sasl", "created_at"),
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "confluent_kafka.uris", "data.deltastream_store.confluent_kafka_with_sasl", "confluent_kafka.uris"),
-				resource.TestCheckResourceAttrPair("deltastream_store.confluent_kafka_with_sasl", "confluent_kafka.schema_registry_name", "data.deltastream_store.confluent_kafka_with_sasl", "confluent_kafka.schema_registry_name"),
-
 				// child entities
 				resource.ComposeTestCheckFunc(func(s *terraform.State) error {
 					topicNames := []string{}
 					r := regexp.MustCompile("child_entities.[0-9]+")
-					for k, v := range s.RootModule().Resources["data.deltastream_entities.confluent_kafka_with_sasl"].Primary.Attributes {
+					for k, v := range s.RootModule().Resources["data.deltastream_entities.kafka_with_sasl"].Primary.Attributes {
 						if ok := r.MatchString(k); ok {
 							topicNames = append(topicNames, v)
 						}
 					}
 
-					expectedTopics := []string{"pageviews"}
+					expectedTopics := []string{"ds_pageviews"}
 					if !util.ArrayContains(expectedTopics, topicNames) {
 						return fmt.Errorf("Topic names %v not found in list: %v", expectedTopics, topicNames)
 					}
@@ -98,9 +88,10 @@ func TestAccDeltaStreamStore(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/store_msk_iam.tf"),
 			ConfigVariables: config.Variables{
-				"msk_url":      config.StringVariable(creds["msk-uri"]),
-				"msk_iam_role": config.StringVariable(creds["msk-iam-role"]),
-				"msk_region":   config.StringVariable(creds["msk-region"]),
+				"region":           config.StringVariable(creds["region"]),
+				"pub_msk_iam_uri":  config.StringVariable(creds["pub_msk_iam_uri"]),
+				"pub_msk_iam_role": config.StringVariable(creds["pub_msk_iam_role"]),
+				"pub_msk_region":   config.StringVariable(creds["pub_msk_region"]),
 			},
 			Check: resource.ComposeTestCheckFunc(
 				// resources
@@ -158,10 +149,11 @@ func TestAccDeltaStreamStore(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/store_kinesis.tf"),
 			ConfigVariables: config.Variables{
-				"kinesis_url":    config.StringVariable(creds["kinesis-uri"]),
-				"kinesis_region": config.StringVariable(creds["kinesis-az"]),
-				"kinesis_key":    config.StringVariable(creds["kinesis-key-id"]),
-				"kinesis_secret": config.StringVariable(creds["kinesis-access-key"]),
+				"region":         config.StringVariable(creds["region"]),
+				"kinesis_url":    config.StringVariable(creds["kinesis_uri"]),
+				"kinesis_region": config.StringVariable(creds["kinesis_region"]),
+				"kinesis_key":    config.StringVariable(creds["kinesis_key"]),
+				"kinesis_secret": config.StringVariable(creds["kinesis_secret"]),
 			},
 			Check: resource.ComposeTestCheckFunc(
 				// resources
@@ -198,13 +190,14 @@ func TestAccDeltaStreamStore(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/store_databricks.tf"),
 			ConfigVariables: config.Variables{
-				"databricks_uri":               config.StringVariable(creds["databricks-uri"]),
-				"databricks_app_token":         config.StringVariable(creds["databricks-app-token"]),
-				"databricks_warehouse_id":      config.StringVariable(creds["databricks-warehouse-id"]),
-				"databricks_access_key_id":     config.StringVariable(creds["databricks-access-key-id"]),
-				"databricks_secret_access_key": config.StringVariable(creds["databricks-secret-access-key"]),
-				"databricks_bucket":            config.StringVariable(creds["databricks-bucket"]),
-				"databricks_bucket_region":     config.StringVariable(creds["databricks-bucket-region"]),
+				"region":                       config.StringVariable(creds["region"]),
+				"databricks_uri":               config.StringVariable(creds["databricks_uri"]),
+				"databricks_app_token":         config.StringVariable(creds["databricks_app_token"]),
+				"databricks_warehouse_id":      config.StringVariable(creds["databricks_warehouse_id"]),
+				"databricks_access_key_id":     config.StringVariable(creds["databricks_access_key_id"]),
+				"databricks_secret_access_key": config.StringVariable(creds["databricks_secret_access_key"]),
+				"databricks_bucket":            config.StringVariable(creds["databricks_bucket"]),
+				"databricks_bucket_region":     config.StringVariable(creds["databricks_bucket_region"]),
 			},
 			Check: resource.ComposeTestCheckFunc(
 				// resources
@@ -261,13 +254,14 @@ func TestAccDeltaStreamStore(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/store_snowflake.tf"),
 			ConfigVariables: config.Variables{
-				"snowflake_uris":                  config.StringVariable(creds["snowflake-uri"]),
-				"snowflake_account_id":            config.StringVariable(creds["snowflake-account-id"]),
-				"snowflake_cloud_region":          config.StringVariable(creds["snowflake-cloud-region"]),
-				"snowflake_warehouse_name":        config.StringVariable(creds["snowflake-warehouse-name"]),
-				"snowflake_role_name":             config.StringVariable(creds["snowflake-role-name"]),
-				"snowflake_username":              config.StringVariable(creds["snowflake-username"]),
-				"snowflake_client_key_file":       config.StringVariable(string(util.Must(base64.StdEncoding.DecodeString(creds["snowflake-client-key-file"])))),
+				"region":                          config.StringVariable(creds["region"]),
+				"snowflake_uris":                  config.StringVariable(creds["snowflake_uri"]),
+				"snowflake_account_id":            config.StringVariable(creds["snowflake_account_id"]),
+				"snowflake_cloud_region":          config.StringVariable(creds["snowflake_cloud_region"]),
+				"snowflake_role_name":             config.StringVariable(creds["snowflake_role_name"]),
+				"snowflake_username":              config.StringVariable(creds["snowflake_username"]),
+				"snowflake_warehouse_name":        config.StringVariable(creds["snowflake_warehouse_name"]),
+				"snowflake_client_key_file":       config.StringVariable(string(util.Must(base64.StdEncoding.DecodeString(creds["snowflake_client_key_file"])))),
 				"snowflake_client_key_passphrase": config.StringVariable(""),
 			},
 			Check: resource.ComposeTestCheckFunc(

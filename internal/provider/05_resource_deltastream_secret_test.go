@@ -16,7 +16,7 @@ import (
 )
 
 func TestAccDeltaStreamSecret(t *testing.T) {
-	_, err := util.LoadTestEnv()
+	creds, err := util.LoadTestEnv()
 	if err != nil {
 		t.Fatalf("Failed to load test environment: %v", err)
 	}
@@ -26,6 +26,9 @@ func TestAccDeltaStreamSecret(t *testing.T) {
 		Steps: []resource.TestStep{{
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/secret.tf"),
+			ConfigVariables: config.Variables{
+				"region": config.StringVariable(creds["region"]),
+			},
 			Check: resource.ComposeTestCheckFunc(
 				resource.TestCheckResourceAttrPair("deltastream_secret.secret1", "type", "data.deltastream_secret.secret1", "type"),
 				resource.TestCheckResourceAttrPair("deltastream_secret.secret1", "description", "data.deltastream_secret.secret1", "description"),

@@ -1,31 +1,37 @@
 provider "deltastream" {}
 
-data "deltastream_regions" "all" {}
+variable "region" {
+  type = string
+}
+
+data "deltastream_region" "region" {
+  name = var.region
+}
 
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
-variable "msk_url" {
+variable "pub_msk_iam_uri" {
   type = string
 }
 
-variable "msk_iam_role" {
+variable "pub_msk_iam_role" {
   type = string
 }
 
-variable "msk_region" {
+variable "pub_msk_region" {
   type = string
 }
 
 resource "deltastream_store" "kafka_with_iam" {
-  name          = "kafka_with_iam_${random_id.suffix.hex}"
-  access_region = data.deltastream_regions.all.items[0].name
+  name          = "store_msk_iam_${random_id.suffix.hex}"
+  access_region = data.deltastream_region.region.name
   kafka = {
-    uris               = var.msk_url
+    uris               = var.pub_msk_iam_uri
     sasl_hash_function = "AWS_MSK_IAM"
-    msk_iam_role_arn   = var.msk_iam_role
-    msk_aws_region     = var.msk_region
+    msk_iam_role_arn   = var.pub_msk_iam_role
+    msk_aws_region     = var.pub_msk_region
   }
 }
 

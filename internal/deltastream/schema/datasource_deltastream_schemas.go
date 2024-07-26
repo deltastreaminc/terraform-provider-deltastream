@@ -34,7 +34,7 @@ func (d *SchemasDataSource) Configure(ctx context.Context, req datasource.Config
 
 	cfg, ok := req.ProviderData.(*config.DeltaStreamProviderCfg)
 	if !ok {
-		util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "internal error", fmt.Errorf("invalid provider data"))
 		return
 	}
 
@@ -81,19 +81,14 @@ func (d *SchemasDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	ctx, conn, err := util.GetConnection(ctx, d.cfg.Db, d.cfg.SessionID, d.cfg.Organization, d.cfg.Role)
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to connect", err)
 		return
 	}
 	defer conn.Close()
 
-	if err := util.SetSqlContext(ctx, conn, &d.cfg.Role, nil, nil, nil); err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to set sql context", err)
-		return
-	}
-
 	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST SCHEMAS IN DATABASE "%s";`, schemas.Database.ValueString()))
 	if err != nil {
-		util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)
 		return
 	}
 	defer rows.Close()
@@ -105,7 +100,7 @@ func (d *SchemasDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		var owner string
 		var createdAt time.Time
 		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			util.LogError(ctx, resp.Diagnostics, "failed to read schemas", err)
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read schemas", err)
 			return
 		}
 		items = append(items, SchemaDatasourceData{
