@@ -1,26 +1,28 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
-version: 1
+version: 2
 
 before:
   hooks:
     - go mod tidy
-    - make fmt doc
+    - make fmt doc testacc
 
 builds:
   - env:
       - CGO_ENABLED=0
+    tags:
+      - containers_image_openpgp
     mod_timestamp: '{{ .CommitTimestamp }}'
     flags:
       - -trimpath
     ldflags:
       - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
     goos:
-      - freebsd
-      - windows
       - linux
       - darwin
+      - windows
+      - freebsd
     goarch:
       - amd64
       - '386'
@@ -58,4 +60,6 @@ release:
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
 
 changelog:
-  skip: true
+  sort: asc
+  abbrev: -1
+
