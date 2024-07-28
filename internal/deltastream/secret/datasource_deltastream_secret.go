@@ -12,7 +12,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &SecretDataSource{}
@@ -41,14 +41,14 @@ func (d *SecretDataSource) Configure(ctx context.Context, req datasource.Configu
 }
 
 type SecretDatasourceData struct {
-	Name         basetypes.StringValue `tfsdk:"name"`
-	Type         basetypes.StringValue `tfsdk:"type"`
-	Description  basetypes.StringValue `tfsdk:"description"`
-	AccessRegion basetypes.StringValue `tfsdk:"access_region"`
-	Owner        basetypes.StringValue `tfsdk:"owner"`
-	Status       basetypes.StringValue `tfsdk:"status"`
-	CreatedAt    basetypes.StringValue `tfsdk:"created_at"`
-	UpdatedAt    basetypes.StringValue `tfsdk:"updated_at"`
+	Name         types.String `tfsdk:"name"`
+	Type         types.String `tfsdk:"type"`
+	Description  types.String `tfsdk:"description"`
+	AccessRegion types.String `tfsdk:"access_region"`
+	Owner        types.String `tfsdk:"owner"`
+	Status       types.String `tfsdk:"status"`
+	CreatedAt    types.String `tfsdk:"created_at"`
+	UpdatedAt    types.String `tfsdk:"updated_at"`
 }
 
 func (d *SecretDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -137,13 +137,13 @@ func (d *SecretDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			return
 		}
 		if name == secret.Name.ValueString() {
-			secret.Type = basetypes.NewStringValue(stype)
-			secret.Description = basetypes.NewStringValue(description)
-			secret.AccessRegion = basetypes.NewStringValue(region)
-			secret.Status = basetypes.NewStringValue(status)
-			secret.Owner = basetypes.NewStringValue(owner)
-			secret.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			secret.UpdatedAt = basetypes.NewStringValue(updatedAt.Format(time.RFC3339))
+			secret.Type = types.StringValue(stype)
+			secret.Description = types.StringValue(description)
+			secret.AccessRegion = types.StringValue(region)
+			secret.Status = types.StringValue(status)
+			secret.Owner = types.StringValue(owner)
+			secret.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			secret.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 			break
 		}
 	}

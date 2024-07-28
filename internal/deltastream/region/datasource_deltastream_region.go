@@ -11,6 +11,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
@@ -40,9 +41,9 @@ func (d *RegionDataSource) Configure(ctx context.Context, req datasource.Configu
 }
 
 type RegionDataSourceData struct {
-	Name   basetypes.StringValue `tfsdk:"name"`
-	Cloud  basetypes.StringValue `tfsdk:"cloud"`
-	Region basetypes.StringValue `tfsdk:"region"`
+	Name   types.String `tfsdk:"name"`
+	Cloud  types.String `tfsdk:"cloud"`
+	Region types.String `tfsdk:"region"`
 }
 
 func (d *RegionDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {

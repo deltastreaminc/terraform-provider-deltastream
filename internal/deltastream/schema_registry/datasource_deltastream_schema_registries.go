@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &SchemaRegistriesDataSource{}
@@ -29,17 +29,16 @@ type SchemaRegistriesDataSource struct {
 }
 
 type SchemaRegistryDatasourceDataItem struct {
-	Name basetypes.StringValue `tfsdk:"name"`
-	// AccessRegion basetypes.StringValue `tfsdk:"access_region"`
-	Type      basetypes.StringValue `tfsdk:"type"`
-	Owner     basetypes.StringValue `tfsdk:"owner"`
-	State     basetypes.StringValue `tfsdk:"state"`
-	UpdatedAt basetypes.StringValue `tfsdk:"updated_at"`
-	CreatedAt basetypes.StringValue `tfsdk:"created_at"`
+	Name      types.String `tfsdk:"name"`
+	Type      types.String `tfsdk:"type"`
+	Owner     types.String `tfsdk:"owner"`
+	State     types.String `tfsdk:"state"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
+	CreatedAt types.String `tfsdk:"created_at"`
 }
 
 type SchemaRegistriesDatasourceData struct {
-	Items basetypes.ListValue `tfsdk:"items"`
+	Items types.List `tfsdk:"items"`
 }
 
 func (d *SchemaRegistriesDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -142,18 +141,17 @@ func (d *SchemaRegistriesDataSource) Read(ctx context.Context, req datasource.Re
 			return
 		}
 		items = append(items, SchemaRegistryDatasourceDataItem{
-			Name:  basetypes.NewStringValue(name),
-			Type:  basetypes.NewStringValue(kind),
-			State: basetypes.NewStringValue(state),
-			// AccessRegion: basetypes.NewStringValue(accessRegion),
-			Owner:     basetypes.NewStringValue(owner),
-			CreatedAt: basetypes.NewStringValue(createdAt.Format(time.RFC3339)),
-			UpdatedAt: basetypes.NewStringValue(createdAt.Format(time.RFC3339)),
+			Name:      types.StringValue(name),
+			Type:      types.StringValue(kind),
+			State:     types.StringValue(state),
+			Owner:     types.StringValue(owner),
+			CreatedAt: types.StringValue(createdAt.Format(time.RFC3339)),
+			UpdatedAt: types.StringValue(createdAt.Format(time.RFC3339)),
 		})
 	}
 
 	var dg diag.Diagnostics
-	schemaRegistries.Items, dg = basetypes.NewListValueFrom(ctx, schemaRegistries.Items.ElementType(ctx), items)
+	schemaRegistries.Items, dg = types.ListValueFrom(ctx, schemaRegistries.Items.ElementType(ctx), items)
 	resp.Diagnostics.Append(dg...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &schemaRegistries)...)

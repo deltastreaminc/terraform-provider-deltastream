@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &StoresDataSource{}
@@ -29,17 +29,17 @@ type StoresDataSource struct {
 }
 
 type StoresDatasourceDataItem struct {
-	Name         basetypes.StringValue `tfsdk:"name"`
-	AccessRegion basetypes.StringValue `tfsdk:"access_region"`
-	Type         basetypes.StringValue `tfsdk:"type"`
-	Owner        basetypes.StringValue `tfsdk:"owner"`
-	State        basetypes.StringValue `tfsdk:"state"`
-	UpdatedAt    basetypes.StringValue `tfsdk:"updated_at"`
-	CreatedAt    basetypes.StringValue `tfsdk:"created_at"`
+	Name         types.String `tfsdk:"name"`
+	AccessRegion types.String `tfsdk:"access_region"`
+	Type         types.String `tfsdk:"type"`
+	Owner        types.String `tfsdk:"owner"`
+	State        types.String `tfsdk:"state"`
+	UpdatedAt    types.String `tfsdk:"updated_at"`
+	CreatedAt    types.String `tfsdk:"created_at"`
 }
 
 type StoresDatasourceData struct {
-	Items basetypes.ListValue `tfsdk:"items"`
+	Items types.List `tfsdk:"items"`
 }
 
 func (d *StoresDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -142,18 +142,18 @@ func (d *StoresDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			return
 		}
 		items = append(items, StoresDatasourceDataItem{
-			Name:         basetypes.NewStringValue(name),
-			Type:         basetypes.NewStringValue(kind),
-			AccessRegion: basetypes.NewStringValue(accessRegion),
-			State:        basetypes.NewStringValue(state),
-			Owner:        basetypes.NewStringValue(owner),
-			CreatedAt:    basetypes.NewStringValue(createdAt.Format(time.RFC3339)),
-			UpdatedAt:    basetypes.NewStringValue(createdAt.Format(time.RFC3339)),
+			Name:         types.StringValue(name),
+			Type:         types.StringValue(kind),
+			AccessRegion: types.StringValue(accessRegion),
+			State:        types.StringValue(state),
+			Owner:        types.StringValue(owner),
+			CreatedAt:    types.StringValue(createdAt.Format(time.RFC3339)),
+			UpdatedAt:    types.StringValue(createdAt.Format(time.RFC3339)),
 		})
 	}
 
 	var dg diag.Diagnostics
-	stores.Items, dg = basetypes.NewListValueFrom(ctx, stores.Items.ElementType(ctx), items)
+	stores.Items, dg = types.ListValueFrom(ctx, stores.Items.ElementType(ctx), items)
 	resp.Diagnostics.Append(dg...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &stores)...)

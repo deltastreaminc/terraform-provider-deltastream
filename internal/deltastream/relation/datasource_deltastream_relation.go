@@ -12,7 +12,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &RelationDataSource{}
@@ -41,15 +41,15 @@ func (d *RelationDataSource) Configure(ctx context.Context, req datasource.Confi
 }
 
 type RelationDataSourceData struct {
-	Database  basetypes.StringValue `tfsdk:"database"`
-	Schema    basetypes.StringValue `tfsdk:"schema"`
-	Name      basetypes.StringValue `tfsdk:"name"`
-	FQN       basetypes.StringValue `tfsdk:"fqn"`
-	Owner     basetypes.StringValue `tfsdk:"owner"`
-	Type      basetypes.StringValue `tfsdk:"type"`
-	State     basetypes.StringValue `tfsdk:"state"`
-	CreatedAt basetypes.StringValue `tfsdk:"created_at"`
-	UpdatedAt basetypes.StringValue `tfsdk:"updated_at"`
+	Database  types.String `tfsdk:"database"`
+	Schema    types.String `tfsdk:"schema"`
+	Name      types.String `tfsdk:"name"`
+	FQN       types.String `tfsdk:"fqn"`
+	Owner     types.String `tfsdk:"owner"`
+	Type      types.String `tfsdk:"type"`
+	State     types.String `tfsdk:"state"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
 }
 
 func (d *RelationDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -139,12 +139,12 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 			return
 		}
 		if name == rel.Name.ValueString() {
-			rel.FQN = basetypes.NewStringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
-			rel.Owner = basetypes.NewStringValue(owner)
-			rel.Type = basetypes.NewStringValue(kind)
-			rel.State = basetypes.NewStringValue(state)
-			rel.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			rel.UpdatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
+			rel.Owner = types.StringValue(owner)
+			rel.Type = types.StringValue(kind)
+			rel.State = types.StringValue(state)
+			rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			break
 		}
 	}

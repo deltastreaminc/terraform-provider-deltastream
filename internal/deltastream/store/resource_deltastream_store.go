@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/sethvargo/go-retry"
@@ -40,89 +41,89 @@ type StoreResource struct {
 }
 
 type KafkaProperties struct {
-	Uris                    basetypes.StringValue `tfsdk:"uris"`
-	SchemaRegistry          basetypes.StringValue `tfsdk:"schema_registry_name"`
-	SaslHashFunc            basetypes.StringValue `tfsdk:"sasl_hash_function"`
-	SaslUsername            basetypes.StringValue `tfsdk:"sasl_username"`
-	SaslPassword            basetypes.StringValue `tfsdk:"sasl_password"`
-	MskIamRoleArn           basetypes.StringValue `tfsdk:"msk_iam_role_arn"`
-	MskAwsRegion            basetypes.StringValue `tfsdk:"msk_aws_region"`
-	TlsDisabled             basetypes.BoolValue   `tfsdk:"tls_disabled"`
-	TlsVerifyServerHostname basetypes.BoolValue   `tfsdk:"tls_verify_server_hostname"`
-	TlsCaCertFile           basetypes.StringValue `tfsdk:"tls_ca_cert_file"`
+	Uris                    types.String `tfsdk:"uris"`
+	SchemaRegistry          types.String `tfsdk:"schema_registry_name"`
+	SaslHashFunc            types.String `tfsdk:"sasl_hash_function"`
+	SaslUsername            types.String `tfsdk:"sasl_username"`
+	SaslPassword            types.String `tfsdk:"sasl_password"`
+	MskIamRoleArn           types.String `tfsdk:"msk_iam_role_arn"`
+	MskAwsRegion            types.String `tfsdk:"msk_aws_region"`
+	TlsDisabled             types.Bool   `tfsdk:"tls_disabled"`
+	TlsVerifyServerHostname types.Bool   `tfsdk:"tls_verify_server_hostname"`
+	TlsCaCertFile           types.String `tfsdk:"tls_ca_cert_file"`
 }
 
 func (KafkaProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"uris":                       basetypes.StringType{},
-		"schema_registry_name":       basetypes.StringType{},
-		"sasl_hash_function":         basetypes.StringType{},
-		"sasl_username":              basetypes.StringType{},
-		"sasl_password":              basetypes.StringType{},
-		"msk_iam_role_arn":           basetypes.StringType{},
-		"msk_aws_region":             basetypes.StringType{},
-		"tls_disabled":               basetypes.BoolType{},
-		"tls_verify_server_hostname": basetypes.BoolType{},
-		"tls_ca_cert_file":           basetypes.StringType{},
+		"uris":                       types.StringType,
+		"schema_registry_name":       types.StringType,
+		"sasl_hash_function":         types.StringType,
+		"sasl_username":              types.StringType,
+		"sasl_password":              types.StringType,
+		"msk_iam_role_arn":           types.StringType,
+		"msk_aws_region":             types.StringType,
+		"tls_disabled":               types.BoolType,
+		"tls_verify_server_hostname": types.BoolType,
+		"tls_ca_cert_file":           types.StringType,
 	}
 }
 
 type ConfleuntKafkaProperties struct {
-	Uris           basetypes.StringValue `tfsdk:"uris"`
-	SchemaRegistry basetypes.StringValue `tfsdk:"schema_registry_name"`
-	SaslHashFunc   basetypes.StringValue `tfsdk:"sasl_hash_function"`
-	SaslUsername   basetypes.StringValue `tfsdk:"sasl_username"`
-	SaslPassword   basetypes.StringValue `tfsdk:"sasl_password"`
+	Uris           types.String `tfsdk:"uris"`
+	SchemaRegistry types.String `tfsdk:"schema_registry_name"`
+	SaslHashFunc   types.String `tfsdk:"sasl_hash_function"`
+	SaslUsername   types.String `tfsdk:"sasl_username"`
+	SaslPassword   types.String `tfsdk:"sasl_password"`
 }
 
 type KinesisProperties struct {
-	Uris            basetypes.StringValue `tfsdk:"uris"`
-	SchemaRegistry  basetypes.StringValue `tfsdk:"schema_registry_name"`
-	AccessKeyId     basetypes.StringValue `tfsdk:"access_key_id"`
-	SecretAccessKey basetypes.StringValue `tfsdk:"secret_access_key"`
+	Uris            types.String `tfsdk:"uris"`
+	SchemaRegistry  types.String `tfsdk:"schema_registry_name"`
+	AccessKeyId     types.String `tfsdk:"access_key_id"`
+	SecretAccessKey types.String `tfsdk:"secret_access_key"`
 }
 
 type SnowflakeProperties struct {
-	Uris                basetypes.StringValue `tfsdk:"uris"`
-	AccountId           basetypes.StringValue `tfsdk:"account_id"`
-	CloudRegion         basetypes.StringValue `tfsdk:"cloud_region"`
-	WarehouseName       basetypes.StringValue `tfsdk:"warehouse_name"`
-	RoleName            basetypes.StringValue `tfsdk:"role_name"`
-	Username            basetypes.StringValue `tfsdk:"username"`
-	ClientKeyFile       basetypes.StringValue `tfsdk:"client_key_file"`
-	ClientKeyPassphrase basetypes.StringValue `tfsdk:"client_key_passphrase"`
+	Uris                types.String `tfsdk:"uris"`
+	AccountId           types.String `tfsdk:"account_id"`
+	CloudRegion         types.String `tfsdk:"cloud_region"`
+	WarehouseName       types.String `tfsdk:"warehouse_name"`
+	RoleName            types.String `tfsdk:"role_name"`
+	Username            types.String `tfsdk:"username"`
+	ClientKeyFile       types.String `tfsdk:"client_key_file"`
+	ClientKeyPassphrase types.String `tfsdk:"client_key_passphrase"`
 }
 
 type DatabricksProperties struct {
-	Uris            basetypes.StringValue `tfsdk:"uris"`
-	AppToken        basetypes.StringValue `tfsdk:"app_token"`
-	WarehouseId     basetypes.StringValue `tfsdk:"warehouse_id"`
-	AccessKeyId     basetypes.StringValue `tfsdk:"access_key_id"`
-	SecretAccessKey basetypes.StringValue `tfsdk:"secret_access_key"`
-	CloudS3Bucket   basetypes.StringValue `tfsdk:"cloud_s3_bucket"`
-	CloudRegion     basetypes.StringValue `tfsdk:"cloud_region"`
+	Uris            types.String `tfsdk:"uris"`
+	AppToken        types.String `tfsdk:"app_token"`
+	WarehouseId     types.String `tfsdk:"warehouse_id"`
+	AccessKeyId     types.String `tfsdk:"access_key_id"`
+	SecretAccessKey types.String `tfsdk:"secret_access_key"`
+	CloudS3Bucket   types.String `tfsdk:"cloud_s3_bucket"`
+	CloudRegion     types.String `tfsdk:"cloud_region"`
 }
 
 type PostgresProperties struct {
-	Uris     basetypes.StringValue `tfsdk:"uris"`
-	Username basetypes.StringValue `tfsdk:"username"`
-	Password basetypes.StringValue `tfsdk:"password"`
+	Uris     types.String `tfsdk:"uris"`
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
 }
 
 type StoreResourceData struct {
-	Name           basetypes.StringValue `tfsdk:"name"`
-	AccessRegion   basetypes.StringValue `tfsdk:"access_region"`
-	Type           basetypes.StringValue `tfsdk:"type"`
-	Kafka          basetypes.ObjectValue `tfsdk:"kafka"`
-	ConfleuntKafka basetypes.ObjectValue `tfsdk:"confluent_kafka"`
-	Kinesis        basetypes.ObjectValue `tfsdk:"kinesis"`
-	Snowflake      basetypes.ObjectValue `tfsdk:"snowflake"`
-	Databricks     basetypes.ObjectValue `tfsdk:"databricks"`
-	Postgres       basetypes.ObjectValue `tfsdk:"postgres"`
-	Owner          basetypes.StringValue `tfsdk:"owner"`
-	State          basetypes.StringValue `tfsdk:"state"`
-	UpdatedAt      basetypes.StringValue `tfsdk:"updated_at"`
-	CreatedAt      basetypes.StringValue `tfsdk:"created_at"`
+	Name           types.String `tfsdk:"name"`
+	AccessRegion   types.String `tfsdk:"access_region"`
+	Type           types.String `tfsdk:"type"`
+	Kafka          types.Object `tfsdk:"kafka"`
+	ConfleuntKafka types.Object `tfsdk:"confluent_kafka"`
+	Kinesis        types.Object `tfsdk:"kinesis"`
+	Snowflake      types.Object `tfsdk:"snowflake"`
+	Databricks     types.Object `tfsdk:"databricks"`
+	Postgres       types.Object `tfsdk:"postgres"`
+	Owner          types.String `tfsdk:"owner"`
+	State          types.String `tfsdk:"state"`
+	UpdatedAt      types.String `tfsdk:"updated_at"`
+	CreatedAt      types.String `tfsdk:"created_at"`
 }
 
 func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -476,13 +477,13 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		stype = "KAFKA"
 		resp.Diagnostics.Append(store.Kafka.As(ctx, &kafkaProperties, basetypes.ObjectAsOptions{})...)
 		if kafkaProperties.TlsDisabled.IsNull() || kafkaProperties.TlsDisabled.IsUnknown() {
-			kafkaProperties.TlsDisabled = basetypes.NewBoolValue(false)
+			kafkaProperties.TlsDisabled = types.BoolValue(false)
 		}
 		if kafkaProperties.TlsVerifyServerHostname.IsNull() || kafkaProperties.TlsVerifyServerHostname.IsUnknown() {
-			kafkaProperties.TlsVerifyServerHostname = basetypes.NewBoolValue(true)
+			kafkaProperties.TlsVerifyServerHostname = types.BoolValue(true)
 		}
 		var dg diag.Diagnostics
-		store.Kafka, dg = basetypes.NewObjectValueFrom(ctx, kafkaProperties.AttributeTypes(), kafkaProperties)
+		store.Kafka, dg = types.ObjectValueFrom(ctx, kafkaProperties.AttributeTypes(), kafkaProperties)
 		resp.Diagnostics.Append(dg...)
 	case !store.ConfleuntKafka.IsNull() && !store.ConfleuntKafka.IsUnknown():
 		stype = "CONFLUENT_KAFKA"
@@ -577,14 +578,14 @@ func (d *StoreResource) updateComputed(ctx context.Context, conn *sql.Conn, stor
 			return store, err
 		}
 		if name == store.Name.ValueString() {
-			store.Type = basetypes.NewStringValue(kind)
-			store.AccessRegion = basetypes.NewStringValue(accessRegion)
-			store.State = basetypes.NewStringValue(state)
-			store.Owner = basetypes.NewStringValue(owner)
-			store.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			store.UpdatedAt = basetypes.NewStringValue(updatedAt.Format(time.RFC3339))
-			store.Owner = basetypes.NewStringValue(owner)
-			store.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			store.Type = types.StringValue(kind)
+			store.AccessRegion = types.StringValue(accessRegion)
+			store.State = types.StringValue(state)
+			store.Owner = types.StringValue(owner)
+			store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			store.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
+			store.Owner = types.StringValue(owner)
+			store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			return store, nil
 		}
 	}

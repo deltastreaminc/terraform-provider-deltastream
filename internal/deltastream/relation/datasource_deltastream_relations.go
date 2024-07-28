@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
@@ -42,9 +43,9 @@ func (d *RelationsDataSource) Configure(ctx context.Context, req datasource.Conf
 }
 
 type RelationsDataSourceData struct {
-	Database  basetypes.StringValue `tfsdk:"database"`
-	Schema    basetypes.StringValue `tfsdk:"schema"`
-	Relations basetypes.ListValue   `tfsdk:"relations"`
+	Database  types.String `tfsdk:"database"`
+	Schema    types.String `tfsdk:"schema"`
+	Relations types.List   `tfsdk:"relations"`
 }
 
 func (d *RelationsDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {

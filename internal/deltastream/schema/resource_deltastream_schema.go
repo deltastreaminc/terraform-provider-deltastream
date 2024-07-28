@@ -14,7 +14,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/sethvargo/go-retry"
 
@@ -35,10 +35,10 @@ type SchemaResource struct {
 }
 
 type SchemaResourceData struct {
-	Database  basetypes.StringValue `tfsdk:"database"`
-	Name      basetypes.StringValue `tfsdk:"name"`
-	Owner     basetypes.StringValue `tfsdk:"owner"`
-	CreatedAt basetypes.StringValue `tfsdk:"created_at"`
+	Database  types.String `tfsdk:"database"`
+	Name      types.String `tfsdk:"name"`
+	Owner     types.String `tfsdk:"owner"`
+	CreatedAt types.String `tfsdk:"created_at"`
 }
 
 func (d *SchemaResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -164,8 +164,8 @@ func (d *SchemaResource) updateComputed(ctx context.Context, conn *sql.Conn, sch
 			return sch, err
 		}
 		if name == sch.Name.ValueString() {
-			sch.Owner = basetypes.NewStringValue(owner)
-			sch.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			sch.Owner = types.StringValue(owner)
+			sch.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			return sch, nil
 		}
 	}

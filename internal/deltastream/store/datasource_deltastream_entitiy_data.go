@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
@@ -50,11 +50,11 @@ func (d *EntityDataDataSource) Metadata(ctx context.Context, req datasource.Meta
 }
 
 type EntityDataDataSourceData struct {
-	Store         basetypes.StringValue `tfsdk:"store"`
-	EntityPath    basetypes.ListValue   `tfsdk:"entity_path"`
-	NumRows       basetypes.Int64Value  `tfsdk:"num_rows"`
-	FromBeginning basetypes.BoolValue   `tfsdk:"from_beginning"`
-	Rows          basetypes.ListValue   `tfsdk:"rows"`
+	Store         types.String `tfsdk:"store"`
+	EntityPath    types.List   `tfsdk:"entity_path"`
+	NumRows       types.Int64  `tfsdk:"num_rows"`
+	FromBeginning types.Bool   `tfsdk:"from_beginning"`
+	Rows          types.List   `tfsdk:"rows"`
 }
 
 func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -70,7 +70,7 @@ func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.Schema
 			"entity_path": schema.ListAttribute{
 				Description: "Path to entity",
 				Required:    true,
-				ElementType: basetypes.StringType{},
+				ElementType: types.StringType,
 			},
 			"num_rows": schema.Int64Attribute{
 				Description: "Number of rows to return",
@@ -83,7 +83,7 @@ func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.Schema
 			"rows": schema.ListAttribute{
 				Description: "Rows",
 				Computed:    true,
-				ElementType: basetypes.StringType{},
+				ElementType: types.StringType,
 			},
 		},
 	}
@@ -169,7 +169,7 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	var dg diag.Diagnostics
-	entityData.Rows, dg = basetypes.NewListValueFrom(ctx, basetypes.StringType{}, items)
+	entityData.Rows, dg = types.ListValueFrom(ctx, types.StringType, items)
 	resp.Diagnostics.Append(dg...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &entityData)...)

@@ -13,7 +13,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &SchemaRegistryDataSource{}
@@ -121,12 +121,11 @@ func (d *SchemaRegistryDataSource) Read(ctx context.Context, req datasource.Read
 			continue
 		}
 
-		sr.Type = basetypes.NewStringValue(kind)
-		sr.State = basetypes.NewStringValue(state)
-		// sr.AccessRegion= basetypes.NewStringValue(accessRegion)
-		sr.Owner = basetypes.NewStringValue(owner)
-		sr.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-		sr.UpdatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+		sr.Type = types.StringValue(kind)
+		sr.State = types.StringValue(state)
+		sr.Owner = types.StringValue(owner)
+		sr.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+		sr.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 		break
 	}
 

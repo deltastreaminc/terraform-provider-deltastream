@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
@@ -35,79 +36,79 @@ type EntityResource struct {
 }
 
 type EntityResourceData struct {
-	Store                basetypes.StringValue `tfsdk:"store"`
-	EntityPath           basetypes.ListValue   `tfsdk:"entity_path"`
-	KafkaProperties      basetypes.ObjectValue `tfsdk:"kafka_properties"`
-	KinesisProperties    basetypes.ObjectValue `tfsdk:"kinesis_properties"`
-	DatabricksProperties basetypes.ObjectValue `tfsdk:"databricks_properties"`
-	SnowflakeProperties  basetypes.ObjectValue `tfsdk:"snowflake_properties"`
-	PostgresProperties   basetypes.ObjectValue `tfsdk:"postgres_properties"`
+	Store                types.String `tfsdk:"store"`
+	EntityPath           types.List   `tfsdk:"entity_path"`
+	KafkaProperties      types.Object `tfsdk:"kafka_properties"`
+	KinesisProperties    types.Object `tfsdk:"kinesis_properties"`
+	DatabricksProperties types.Object `tfsdk:"databricks_properties"`
+	SnowflakeProperties  types.Object `tfsdk:"snowflake_properties"`
+	PostgresProperties   types.Object `tfsdk:"postgres_properties"`
 }
 
 type KafkaStoreEntityResourceData struct {
-	TopicPartitions basetypes.Int64Value  `tfsdk:"topic_partitions"`
-	TopicReplicas   basetypes.Int64Value  `tfsdk:"topic_replicas"`
-	KeyDescriptor   basetypes.StringValue `tfsdk:"key_descriptor"`
-	ValueDescriptor basetypes.StringValue `tfsdk:"value_descriptor"`
-	Configs         basetypes.MapValue    `tfsdk:"configs"`
+	TopicPartitions types.Int64  `tfsdk:"topic_partitions"`
+	TopicReplicas   types.Int64  `tfsdk:"topic_replicas"`
+	KeyDescriptor   types.String `tfsdk:"key_descriptor"`
+	ValueDescriptor types.String `tfsdk:"value_descriptor"`
+	Configs         types.Map    `tfsdk:"configs"`
 }
 
 func (KafkaStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"topic_partitions": basetypes.Int64Type{},
-		"topic_replicas":   basetypes.Int64Type{},
-		"key_descriptor":   basetypes.StringType{},
-		"value_descriptor": basetypes.StringType{},
-		"configs": basetypes.MapType{
-			ElemType: basetypes.StringType{},
+		"topic_partitions": types.Int64Type,
+		"topic_replicas":   types.Int64Type,
+		"key_descriptor":   types.StringType,
+		"value_descriptor": types.StringType,
+		"configs": types.MapType{
+			ElemType: types.StringType,
 		},
 	}
 }
 
 type KinesisStoreEntityResourceData struct {
-	KinesisShards basetypes.Int64Value  `tfsdk:"kinesis_shards"`
-	Descriptor    basetypes.StringValue `tfsdk:"descriptor"`
+	KinesisShards types.Int64  `tfsdk:"kinesis_shards"`
+	Descriptor    types.String `tfsdk:"descriptor"`
 }
 
 func (KinesisStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"kinesis_shards": basetypes.Int64Type{},
-		"descriptor":     basetypes.StringType{},
+		"kinesis_shards": types.Int64Type,
+		"descriptor":     types.StringType,
 	}
 }
 
 type SnowflakeStoreEntityResourceData struct {
-	Details basetypes.MapValue `tfsdk:"details"`
+	Details types.Map `tfsdk:"details"`
 }
 
 func (SnowflakeStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"details": basetypes.MapType{
-			ElemType: basetypes.StringType{},
+		"details": types.MapType{
+			ElemType: types.StringType,
 		},
 	}
 }
 
 type DatabricksStoreEntityResourceData struct {
-	Details basetypes.MapValue `tfsdk:"details"`
+	Details types.Map `tfsdk:"details"`
 }
 
 func (DatabricksStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"details": basetypes.MapType{
-			ElemType: basetypes.StringType{},
+			ElemType: types.StringType,
 		},
 	}
 }
 
 type PostgresStoreEntityResourceData struct {
-	Details basetypes.MapValue `tfsdk:"details"`
+	Details types.Map `tfsdk:"details"`
 }
 
 func (PostgresStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"details": basetypes.MapType{
-			ElemType: basetypes.StringType{},
+			ElemType: types.StringType,
 		},
 	}
 }
@@ -125,7 +126,7 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"entity_path": schema.ListAttribute{
 				Description: "Entity path",
 				Required:    true,
-				ElementType: basetypes.StringType{},
+				ElementType: types.StringType,
 			},
 			"kafka_properties": schema.SingleNestedAttribute{
 				Description: "Kafka properties",
@@ -154,7 +155,7 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 						Description: "Additional topic configurations",
 						Optional:    true,
 						Computed:    true,
-						ElementType: basetypes.StringType{},
+						ElementType: types.StringType,
 					},
 				},
 				Optional: true,
@@ -181,7 +182,7 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Description: "Snowflake properties",
 				Attributes: map[string]schema.Attribute{
 					"details": schema.MapAttribute{
-						ElementType: basetypes.StringType{},
+						ElementType: types.StringType,
 						Computed:    true,
 					},
 				},
@@ -192,7 +193,7 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Description: "Databricks properties",
 				Attributes: map[string]schema.Attribute{
 					"details": schema.MapAttribute{
-						ElementType: basetypes.StringType{},
+						ElementType: types.StringType,
 						Computed:    true,
 					},
 				},
@@ -203,7 +204,7 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Description: "Postgres properties",
 				Attributes: map[string]schema.Attribute{
 					"details": schema.MapAttribute{
-						ElementType: basetypes.StringType{},
+						ElementType: types.StringType,
 						Computed:    true,
 					},
 				},
@@ -292,7 +293,7 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 			properties = append(properties, fmt.Sprintf("'kafka.replicas' = %d", kafkaProperties.TopicReplicas.ValueInt64()))
 		}
 		for k, v := range kafkaProperties.Configs.Elements() {
-			properties = append(properties, fmt.Sprintf("'%s' = '%s'", k, v.(basetypes.StringValue).ValueString()))
+			properties = append(properties, fmt.Sprintf("'%s' = '%s'", k, v.(types.String).ValueString()))
 		}
 	case "Kinesis":
 		var kinesisProperties KinesisStoreEntityResourceData
@@ -437,22 +438,22 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 			return
 		}
 		var kafkaProperties KafkaStoreEntityResourceData
-		kafkaProperties.TopicPartitions = basetypes.NewInt64Value(topicPartitions)
-		kafkaProperties.TopicReplicas = basetypes.NewInt64Value(topicReplicas)
-		kafkaProperties.KeyDescriptor = basetypes.NewStringPointerValue(keyDescriptor)
-		kafkaProperties.ValueDescriptor = basetypes.NewStringPointerValue(valueDescriptor)
+		kafkaProperties.TopicPartitions = types.Int64Value(topicPartitions)
+		kafkaProperties.TopicReplicas = types.Int64Value(topicReplicas)
+		kafkaProperties.KeyDescriptor = types.StringPointerValue(keyDescriptor)
+		kafkaProperties.ValueDescriptor = types.StringPointerValue(valueDescriptor)
 		configs := map[string]string{}
 		if err := json.Unmarshal([]byte(configJSON), &configs); err != nil {
 			diags.AddError("failed to read entity configuration", err.Error())
 			return
 		}
 		var d diag.Diagnostics
-		kafkaProperties.Configs, d = basetypes.NewMapValueFrom(ctx, basetypes.StringType{}, configs)
+		kafkaProperties.Configs, d = types.MapValueFrom(ctx, types.StringType, configs)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
 		}
-		entity.KafkaProperties, d = basetypes.NewObjectValueFrom(ctx, kafkaProperties.AttributeTypes(), kafkaProperties)
+		entity.KafkaProperties, d = types.ObjectValueFrom(ctx, kafkaProperties.AttributeTypes(), kafkaProperties)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
@@ -466,15 +467,15 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 			return
 		}
 		var kinesisProperties KinesisStoreEntityResourceData
-		kinesisProperties.KinesisShards = basetypes.NewInt64Value(topicShards)
-		kinesisProperties.Descriptor = basetypes.NewStringValue(descriptor)
+		kinesisProperties.KinesisShards = types.Int64Value(topicShards)
+		kinesisProperties.Descriptor = types.StringValue(descriptor)
 		var d diag.Diagnostics
-		entity.KinesisProperties, d = basetypes.NewObjectValueFrom(ctx, kinesisProperties.AttributeTypes(), kinesisProperties)
+		entity.KinesisProperties, d = types.ObjectValueFrom(ctx, kinesisProperties.AttributeTypes(), kinesisProperties)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
 		}
-		entity.KinesisProperties, d = basetypes.NewObjectValueFrom(ctx, kinesisProperties.AttributeTypes(), kinesisProperties)
+		entity.KinesisProperties, d = types.ObjectValueFrom(ctx, kinesisProperties.AttributeTypes(), kinesisProperties)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
@@ -487,12 +488,12 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		}
 		var snowflakeProperties SnowflakeStoreEntityResourceData
 		var d diag.Diagnostics
-		snowflakeProperties.Details, d = basetypes.NewMapValueFrom(ctx, basetypes.StringType{}, detail)
+		snowflakeProperties.Details, d = types.MapValueFrom(ctx, types.StringType, detail)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
 		}
-		entity.SnowflakeProperties, d = basetypes.NewObjectValueFrom(ctx, snowflakeProperties.AttributeTypes(), snowflakeProperties)
+		entity.SnowflakeProperties, d = types.ObjectValueFrom(ctx, snowflakeProperties.AttributeTypes(), snowflakeProperties)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
@@ -505,12 +506,12 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		}
 		var databricksProperties DatabricksStoreEntityResourceData
 		var d diag.Diagnostics
-		databricksProperties.Details, d = basetypes.NewMapValueFrom(ctx, basetypes.StringType{}, detail)
+		databricksProperties.Details, d = types.MapValueFrom(ctx, types.StringType, detail)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
 		}
-		entity.SnowflakeProperties, d = basetypes.NewObjectValueFrom(ctx, databricksProperties.AttributeTypes(), databricksProperties)
+		entity.SnowflakeProperties, d = types.ObjectValueFrom(ctx, databricksProperties.AttributeTypes(), databricksProperties)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
@@ -523,12 +524,12 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		}
 		var postgresProperties PostgresStoreEntityResourceData
 		var d diag.Diagnostics
-		postgresProperties.Details, d = basetypes.NewMapValueFrom(ctx, basetypes.StringType{}, detail)
+		postgresProperties.Details, d = types.MapValueFrom(ctx, types.StringType, detail)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
 		}
-		entity.SnowflakeProperties, d = basetypes.NewObjectValueFrom(ctx, postgresProperties.AttributeTypes(), postgresProperties)
+		entity.SnowflakeProperties, d = types.ObjectValueFrom(ctx, postgresProperties.AttributeTypes(), postgresProperties)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
@@ -536,19 +537,19 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 	}
 
 	if entity.KafkaProperties.IsUnknown() {
-		entity.KafkaProperties = basetypes.NewObjectNull(KafkaStoreEntityResourceData{}.AttributeTypes())
+		entity.KafkaProperties = types.ObjectNull(KafkaStoreEntityResourceData{}.AttributeTypes())
 	}
 	if entity.KinesisProperties.IsUnknown() {
-		entity.KinesisProperties = basetypes.NewObjectNull(KinesisStoreEntityResourceData{}.AttributeTypes())
+		entity.KinesisProperties = types.ObjectNull(KinesisStoreEntityResourceData{}.AttributeTypes())
 	}
 	if entity.SnowflakeProperties.IsUnknown() {
-		entity.SnowflakeProperties = basetypes.NewObjectNull(SnowflakeStoreEntityResourceData{}.AttributeTypes())
+		entity.SnowflakeProperties = types.ObjectNull(SnowflakeStoreEntityResourceData{}.AttributeTypes())
 	}
 	if entity.DatabricksProperties.IsUnknown() {
-		entity.DatabricksProperties = basetypes.NewObjectNull(DatabricksStoreEntityResourceData{}.AttributeTypes())
+		entity.DatabricksProperties = types.ObjectNull(DatabricksStoreEntityResourceData{}.AttributeTypes())
 	}
 	if entity.PostgresProperties.IsUnknown() {
-		entity.PostgresProperties = basetypes.NewObjectNull(PostgresStoreEntityResourceData{}.AttributeTypes())
+		entity.PostgresProperties = types.ObjectNull(PostgresStoreEntityResourceData{}.AttributeTypes())
 	}
 
 	return

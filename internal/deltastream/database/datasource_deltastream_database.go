@@ -12,7 +12,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &DatabaseDataSource{}
@@ -106,8 +106,8 @@ func (d *DatabaseDataSource) Read(ctx context.Context, req datasource.ReadReques
 			return
 		}
 		if name == database.Name.ValueString() {
-			database.Owner = basetypes.NewStringValue(owner)
-			database.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			database.Owner = types.StringValue(owner)
+			database.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			break
 		}
 	}

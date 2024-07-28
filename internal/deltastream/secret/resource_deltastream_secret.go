@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/sethvargo/go-retry"
 
@@ -37,16 +37,16 @@ type SecretResource struct {
 }
 
 type SecretResourceData struct {
-	Name             basetypes.StringValue `tfsdk:"name"`
-	Type             basetypes.StringValue `tfsdk:"type"`
-	Description      basetypes.StringValue `tfsdk:"description"`
-	AccessRegion     basetypes.StringValue `tfsdk:"access_region"`
-	Owner            basetypes.StringValue `tfsdk:"owner"`
-	StringValue      basetypes.StringValue `tfsdk:"string_value"`
-	CustomProperties basetypes.MapValue    `tfsdk:"custom_properties"`
-	Status           basetypes.StringValue `tfsdk:"status"`
-	CreatedAt        basetypes.StringValue `tfsdk:"created_at"`
-	UpdatedAt        basetypes.StringValue `tfsdk:"updated_at"`
+	Name             types.String `tfsdk:"name"`
+	Type             types.String `tfsdk:"type"`
+	Description      types.String `tfsdk:"description"`
+	AccessRegion     types.String `tfsdk:"access_region"`
+	Owner            types.String `tfsdk:"owner"`
+	StringValue      types.String `tfsdk:"string_value"`
+	CustomProperties types.Map    `tfsdk:"custom_properties"`
+	Status           types.String `tfsdk:"status"`
+	CreatedAt        types.String `tfsdk:"created_at"`
+	UpdatedAt        types.String `tfsdk:"updated_at"`
 }
 
 func (d *SecretResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -84,7 +84,7 @@ func (d *SecretResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			},
 			"custom_properties": schema.MapAttribute{
 				Description: "Custom properties of the Secret",
-				ElementType: basetypes.StringType{},
+				ElementType: types.StringType,
 				Optional:    true,
 			},
 			"status": schema.StringAttribute{
@@ -219,10 +219,10 @@ func (d *SecretResource) updateComputed(ctx context.Context, conn *sql.Conn, db 
 			return db, err
 		}
 		if name == db.Name.ValueString() {
-			db.Status = basetypes.NewStringValue(status)
-			db.Owner = basetypes.NewStringValue(owner)
-			db.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			db.UpdatedAt = basetypes.NewStringValue(updatedAt.Format(time.RFC3339))
+			db.Status = types.StringValue(status)
+			db.Owner = types.StringValue(owner)
+			db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			db.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 			return db, nil
 		}
 	}

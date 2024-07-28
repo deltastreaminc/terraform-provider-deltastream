@@ -14,6 +14,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/sethvargo/go-retry"
@@ -35,27 +36,27 @@ type SchemaRegistryResource struct {
 }
 
 type ConfluentProperties struct {
-	Uris       basetypes.StringValue `tfsdk:"uris"`
-	Username   basetypes.StringValue `tfsdk:"username"`
-	Properties basetypes.StringValue `tfsdk:"password"`
+	Uris       types.String `tfsdk:"uris"`
+	Username   types.String `tfsdk:"username"`
+	Properties types.String `tfsdk:"password"`
 }
 
 type ConfluentCloudProperties struct {
-	Uris   basetypes.StringValue `tfsdk:"uris"`
-	Key    basetypes.StringValue `tfsdk:"key"`
-	Secret basetypes.StringValue `tfsdk:"secret"`
+	Uris   types.String `tfsdk:"uris"`
+	Key    types.String `tfsdk:"key"`
+	Secret types.String `tfsdk:"secret"`
 }
 
 type SchemaRegistryResourceData struct {
-	Name           basetypes.StringValue `tfsdk:"name"`
-	Type           basetypes.StringValue `tfsdk:"type"`
-	AccessRegion   basetypes.StringValue `tfsdk:"access_region"`
-	Confluent      basetypes.ObjectValue `tfsdk:"confluent"`
-	ConfluentCloud basetypes.ObjectValue `tfsdk:"confluent_cloud"`
-	Owner          basetypes.StringValue `tfsdk:"owner"`
-	State          basetypes.StringValue `tfsdk:"state"`
-	UpdatedAt      basetypes.StringValue `tfsdk:"updated_at"`
-	CreatedAt      basetypes.StringValue `tfsdk:"created_at"`
+	Name           types.String `tfsdk:"name"`
+	Type           types.String `tfsdk:"type"`
+	AccessRegion   types.String `tfsdk:"access_region"`
+	Confluent      types.Object `tfsdk:"confluent"`
+	ConfluentCloud types.Object `tfsdk:"confluent_cloud"`
+	Owner          types.String `tfsdk:"owner"`
+	State          types.String `tfsdk:"state"`
+	UpdatedAt      types.String `tfsdk:"updated_at"`
+	CreatedAt      types.String `tfsdk:"created_at"`
 }
 
 func (d *SchemaRegistryResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -264,11 +265,11 @@ func (d *SchemaRegistryResource) updateComputed(ctx context.Context, conn *sql.C
 			return sr, err
 		}
 		if name == sr.Name.ValueString() {
-			sr.State = basetypes.NewStringValue(state)
-			sr.Type = basetypes.NewStringValue(srtype)
-			sr.Owner = basetypes.NewStringValue(owner)
-			sr.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			sr.UpdatedAt = basetypes.NewStringValue(updatedAt.Format(time.RFC3339))
+			sr.State = types.StringValue(state)
+			sr.Type = types.StringValue(srtype)
+			sr.Owner = types.StringValue(owner)
+			sr.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			sr.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 			return sr, nil
 		}
 	}
