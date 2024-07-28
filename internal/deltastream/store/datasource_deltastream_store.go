@@ -318,6 +318,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var discard any
 		var name string
@@ -332,6 +333,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			return
 		}
 		if name == store.Name.ValueString() {
+			found = true
 			store.Type = types.StringValue(kind)
 			store.AccessRegion = types.StringValue(accessRegion)
 			store.State = types.StringValue(state)
@@ -340,6 +342,11 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			store.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 			break
 		}
+	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading store", "store not found")
+		return
 	}
 
 	row := conn.QueryRowContext(ctx, fmt.Sprintf(`DESCRIBE STORE "%s";`, store.Name.ValueString()))

@@ -162,6 +162,7 @@ func (d *DatabaseResource) updateComputed(ctx context.Context, conn *sql.Conn, d
 			return db, nil
 		}
 	}
+
 	return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
 }
 
@@ -222,6 +223,11 @@ func (d *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	database, err = d.updateComputed(ctx, conn, database)
 	if err != nil {
+		var godsErr gods.ErrSQLError
+		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidDatabase {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read database state", err)
 		return
 	}

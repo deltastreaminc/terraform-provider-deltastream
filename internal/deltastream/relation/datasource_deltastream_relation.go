@@ -123,6 +123,7 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var (
 			name           string
@@ -139,6 +140,7 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 			return
 		}
 		if name == rel.Name.ValueString() {
+			found = true
 			rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
 			rel.Owner = types.StringValue(owner)
 			rel.Type = types.StringValue(kind)
@@ -147,6 +149,11 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 			rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			break
 		}
+	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading relation", "relation not found")
+		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &rel)...)

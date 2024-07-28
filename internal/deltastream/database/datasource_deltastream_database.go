@@ -96,6 +96,7 @@ func (d *DatabaseDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var discard any
 		var name string
@@ -106,10 +107,17 @@ func (d *DatabaseDataSource) Read(ctx context.Context, req datasource.ReadReques
 			return
 		}
 		if name == database.Name.ValueString() {
+			found = true
 			database.Owner = types.StringValue(owner)
 			database.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			break
 		}
 	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading database", "database not found")
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &database)...)
 }

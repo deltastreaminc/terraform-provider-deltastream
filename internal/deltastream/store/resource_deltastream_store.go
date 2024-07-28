@@ -665,7 +665,8 @@ func (d *StoreResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	store, err = d.updateComputed(ctx, conn, store)
 	if err != nil {
 		var godsErr gods.ErrSQLError
-		if errors.As(err, &godsErr) && godsErr.SQLCode != gods.SqlStateInvalidStore {
+		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidStore {
+			resp.State.RemoveResource(ctx)
 			return
 		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)

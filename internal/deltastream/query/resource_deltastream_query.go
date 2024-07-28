@@ -371,6 +371,7 @@ func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	if err != nil {
 		var godsErr gods.ErrSQLError
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidQuery {
+			resp.State.RemoveResource(ctx)
 			return
 		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)

@@ -283,6 +283,7 @@ func (d *SecretResource) Read(ctx context.Context, req resource.ReadRequest, res
 	if err != nil {
 		var godsErr gods.ErrSQLError
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidSecret {
+			resp.State.RemoveResource(ctx)
 			return
 		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)

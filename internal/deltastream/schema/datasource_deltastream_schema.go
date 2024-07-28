@@ -101,6 +101,7 @@ func (d *SchemaDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var discard any
 		var name string
@@ -111,10 +112,17 @@ func (d *SchemaDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			return
 		}
 		if name == schema.Name.ValueString() {
+			found = true
 			schema.Owner = types.StringValue(owner)
 			schema.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			break
 		}
 	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading schema", "schema not found")
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &schema)...)
 }

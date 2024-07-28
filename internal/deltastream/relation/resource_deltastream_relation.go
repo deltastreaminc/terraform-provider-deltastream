@@ -387,6 +387,7 @@ func (d *RelationResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if err != nil {
 		var godsErr gods.ErrSQLError
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidRelation {
+			resp.State.RemoveResource(ctx)
 			return
 		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)

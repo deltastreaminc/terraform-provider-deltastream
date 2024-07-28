@@ -98,6 +98,7 @@ func (d *RegionDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var name string
 		var cloud string
@@ -107,10 +108,17 @@ func (d *RegionDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			return
 		}
 		if name == dsRegion.Name.ValueString() {
+			found = true
 			dsRegion.Cloud = basetypes.NewStringValue(cloud)
 			dsRegion.Region = basetypes.NewStringValue(region)
 			break
 		}
 	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading region", "region not found")
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &dsRegion)...)
 }

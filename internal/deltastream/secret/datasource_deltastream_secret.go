@@ -123,6 +123,7 @@ func (d *SecretDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var name string
 		var stype string
@@ -137,6 +138,7 @@ func (d *SecretDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			return
 		}
 		if name == secret.Name.ValueString() {
+			found = true
 			secret.Type = types.StringValue(stype)
 			secret.Description = types.StringValue(description)
 			secret.AccessRegion = types.StringValue(region)
@@ -147,5 +149,11 @@ func (d *SecretDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			break
 		}
 	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading secret", "secret not found")
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &secret)...)
 }
