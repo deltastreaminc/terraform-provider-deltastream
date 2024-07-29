@@ -347,7 +347,37 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 
 		return retry.RetryableError(fmt.Errorf("query not yet terminated"))
 	}); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to cleanup relation", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to terminate query", err)
+		return
+	}
+
+	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*10, retry.NewExponential(time.Second)), func(ctx context.Context) error {
+		sql := fmt.Sprintf(`DESCRIBE QUERY STATE %s;`, query.QueryID.ValueString())
+		rows, err := conn.QueryContext(ctx, sql)
+		if err != nil {
+			return retry.RetryableError(fmt.Errorf("unable to lookup query state: %w", err))
+		}
+		defer rows.Close()
+
+		stateReady := true
+		for rows.Next() {
+			var (
+				discard any
+				state   string
+			)
+
+			if err := rows.Scan(&discard, &discard, &discard, &state); err != nil {
+				return fmt.Errorf("unable to read query state: %w", err)
+			}
+			stateReady = stateReady && (state == "completed")
+		}
+
+		if stateReady {
+			return nil
+		}
+		return retry.RetryableError(fmt.Errorf("state information not available"))
+	}); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to terminate query", err)
 		return
 	}
 
