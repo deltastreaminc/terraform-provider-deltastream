@@ -6,7 +6,7 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - make fmt doc testacc
+    - PWD={{ .Env.GITHUB_WORKSPACE }} make fmt doc testacc
 
 builds:
   - env:
