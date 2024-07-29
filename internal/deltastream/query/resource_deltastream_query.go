@@ -14,6 +14,10 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/sethvargo/go-retry"
@@ -35,16 +39,16 @@ type QueryResource struct {
 }
 
 type QueryResourceData struct {
-	SourceRelations basetypes.ListValue   `tfsdk:"source_relation_fqns"`
-	SinkRelation    basetypes.StringValue `tfsdk:"sink_relation_fqn"`
-	Sql             basetypes.StringValue `tfsdk:"sql"`
-	QueryID         basetypes.StringValue `tfsdk:"query_id"`
-	Name            basetypes.StringValue `tfsdk:"query_name"`
-	Version         basetypes.Int64Value  `tfsdk:"query_version"`
-	State           basetypes.StringValue `tfsdk:"state"`
-	Owner           basetypes.StringValue `tfsdk:"owner"`
-	CreatedAt       basetypes.StringValue `tfsdk:"created_at"`
-	UpdatedAt       basetypes.StringValue `tfsdk:"updated_at"`
+	SourceRelations types.List   `tfsdk:"source_relation_fqns"`
+	SinkRelation    types.String `tfsdk:"sink_relation_fqn"`
+	Sql             types.String `tfsdk:"sql"`
+	QueryID         types.String `tfsdk:"query_id"`
+	Name            types.String `tfsdk:"query_name"`
+	Version         types.Int64  `tfsdk:"query_version"`
+	State           types.String `tfsdk:"state"`
+	Owner           types.String `tfsdk:"owner"`
+	CreatedAt       types.String `tfsdk:"created_at"`
+	UpdatedAt       types.String `tfsdk:"updated_at"`
 }
 
 func (d *QueryResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -68,14 +72,23 @@ func (d *QueryResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"query_id": schema.StringAttribute{
 				Description: "Query ID",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"query_name": schema.StringAttribute{
 				Description: "Query Name",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"query_version": schema.Int64Attribute{
 				Description: "Query version",
 				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the query",
@@ -216,7 +229,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to launch query", err)
 		return
 	}
-	query.QueryID = basetypes.NewStringValue(artifactDDL.Name)
+	query.QueryID = types.StringValue(artifactDDL.Name)
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*10, retry.NewConstant(time.Second*15)), func(ctx context.Context) (err error) {
 		query, err = d.updateComputed(ctx, conn, query, false)
@@ -281,13 +294,13 @@ func (d *QueryResource) updateComputed(ctx context.Context, conn *sql.Conn, rel 
 			return rel, err
 		}
 		if id == rel.QueryID.ValueString() {
-			rel.QueryID = basetypes.NewStringValue(id)
-			rel.Name = basetypes.NewStringValue(name)
-			rel.Version = basetypes.NewInt64Value(version)
-			rel.State = basetypes.NewStringValue(actualState)
-			rel.Owner = basetypes.NewStringValue(owner)
-			rel.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			rel.UpdatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			rel.QueryID = types.StringValue(id)
+			rel.Name = types.StringValue(name)
+			rel.Version = types.Int64Value(version)
+			rel.State = types.StringValue(actualState)
+			rel.Owner = types.StringValue(owner)
+			rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			return rel, nil
 		}
 	}
@@ -370,6 +383,7 @@ func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	if err != nil {
 		var godsErr gods.ErrSQLError
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidQuery {
+			resp.State.RemoveResource(ctx)
 			return
 		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)

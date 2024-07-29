@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 var _ datasource.DataSource = &StoreDataSource{}
@@ -33,13 +32,13 @@ type StoreDataSource struct {
 }
 
 type KafkaDatasourceProperties struct {
-	Uris                    basetypes.StringValue `tfsdk:"uris"`
-	SchemaRegistryName      basetypes.StringValue `tfsdk:"schema_registry_name"`
-	TlsDisabled             basetypes.BoolValue   `tfsdk:"tls_disabled"`
-	TlsVerifyServerHostname basetypes.BoolValue   `tfsdk:"tls_verify_server_hostname"`
+	Uris                    types.String `tfsdk:"uris"`
+	SchemaRegistryName      types.String `tfsdk:"schema_registry_name"`
+	TlsDisabled             types.Bool   `tfsdk:"tls_disabled"`
+	TlsVerifyServerHostname types.Bool   `tfsdk:"tls_verify_server_hostname"`
 }
 
-func (_ KafkaDatasourceProperties) AttributeTypes() map[string]attr.Type {
+func (KafkaDatasourceProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"uris":                       types.StringType,
 		"schema_registry_name":       types.StringType,
@@ -49,11 +48,11 @@ func (_ KafkaDatasourceProperties) AttributeTypes() map[string]attr.Type {
 }
 
 type ConfluentKafkaDatasourceProperties struct {
-	Uris               basetypes.StringValue `tfsdk:"uris"`
-	SchemaRegistryName basetypes.StringValue `tfsdk:"schema_registry_name"`
+	Uris               types.String `tfsdk:"uris"`
+	SchemaRegistryName types.String `tfsdk:"schema_registry_name"`
 }
 
-func (_ ConfluentKafkaDatasourceProperties) AttributeTypes() map[string]attr.Type {
+func (ConfluentKafkaDatasourceProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"uris":                 types.StringType,
 		"schema_registry_name": types.StringType,
@@ -61,11 +60,11 @@ func (_ ConfluentKafkaDatasourceProperties) AttributeTypes() map[string]attr.Typ
 }
 
 type KinesisDatasourceProperties struct {
-	Uris               basetypes.StringValue `tfsdk:"uris"`
-	SchemaRegistryName basetypes.StringValue `tfsdk:"schema_registry_name"`
+	Uris               types.String `tfsdk:"uris"`
+	SchemaRegistryName types.String `tfsdk:"schema_registry_name"`
 }
 
-func (_ KinesisDatasourceProperties) AttributeTypes() map[string]attr.Type {
+func (KinesisDatasourceProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"uris":                 types.StringType,
 		"schema_registry_name": types.StringType,
@@ -73,13 +72,13 @@ func (_ KinesisDatasourceProperties) AttributeTypes() map[string]attr.Type {
 }
 
 type SnowflakeDatasourceProperties struct {
-	Uris          basetypes.StringValue `tfsdk:"uris"`
-	AccountId     basetypes.StringValue `tfsdk:"account_id"`
-	WarehouseName basetypes.StringValue `tfsdk:"warehouse_name"`
-	RoleName      basetypes.StringValue `tfsdk:"role_name"`
+	Uris          types.String `tfsdk:"uris"`
+	AccountId     types.String `tfsdk:"account_id"`
+	WarehouseName types.String `tfsdk:"warehouse_name"`
+	RoleName      types.String `tfsdk:"role_name"`
 }
 
-func (_ SnowflakeDatasourceProperties) AttributeTypes() map[string]attr.Type {
+func (SnowflakeDatasourceProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"uris":           types.StringType,
 		"account_id":     types.StringType,
@@ -89,13 +88,13 @@ func (_ SnowflakeDatasourceProperties) AttributeTypes() map[string]attr.Type {
 }
 
 type DatabricksDatasourceProperties struct {
-	Uris          basetypes.StringValue `tfsdk:"uris"`
-	WarehouseId   basetypes.StringValue `tfsdk:"warehouse_id"`
-	CloudS3Bucket basetypes.StringValue `tfsdk:"cloud_s3_bucket"`
-	CloudRegion   basetypes.StringValue `tfsdk:"cloud_region"`
+	Uris          types.String `tfsdk:"uris"`
+	WarehouseId   types.String `tfsdk:"warehouse_id"`
+	CloudS3Bucket types.String `tfsdk:"cloud_s3_bucket"`
+	CloudRegion   types.String `tfsdk:"cloud_region"`
 }
 
-func (_ DatabricksDatasourceProperties) AttributeTypes() map[string]attr.Type {
+func (DatabricksDatasourceProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"uris":            types.StringType,
 		"warehouse_id":    types.StringType,
@@ -105,29 +104,29 @@ func (_ DatabricksDatasourceProperties) AttributeTypes() map[string]attr.Type {
 }
 
 type PostgresDatasourceProperties struct {
-	Uris basetypes.StringValue `tfsdk:"uris"`
+	Uris types.String `tfsdk:"uris"`
 }
 
-func (_ PostgresDatasourceProperties) AttributeTypes() map[string]attr.Type {
+func (PostgresDatasourceProperties) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"uris": types.StringType,
 	}
 }
 
 type StoreDatasourceData struct {
-	Name           basetypes.StringValue `tfsdk:"name"`
-	AccessRegion   basetypes.StringValue `tfsdk:"access_region"`
-	Type           basetypes.StringValue `tfsdk:"type"`
-	Owner          basetypes.StringValue `tfsdk:"owner"`
-	State          basetypes.StringValue `tfsdk:"state"`
-	Kafka          basetypes.ObjectValue `tfsdk:"kafka"`
-	ConfluentKafka basetypes.ObjectValue `tfsdk:"confluent_kafka"`
-	Kinesis        basetypes.ObjectValue `tfsdk:"kinesis"`
-	Snowflake      basetypes.ObjectValue `tfsdk:"snowflake"`
-	Databricks     basetypes.ObjectValue `tfsdk:"databricks"`
-	Postgres       basetypes.ObjectValue `tfsdk:"postgres"`
-	UpdatedAt      basetypes.StringValue `tfsdk:"updated_at"`
-	CreatedAt      basetypes.StringValue `tfsdk:"created_at"`
+	Name           types.String `tfsdk:"name"`
+	AccessRegion   types.String `tfsdk:"access_region"`
+	Type           types.String `tfsdk:"type"`
+	Owner          types.String `tfsdk:"owner"`
+	State          types.String `tfsdk:"state"`
+	Kafka          types.Object `tfsdk:"kafka"`
+	ConfluentKafka types.Object `tfsdk:"confluent_kafka"`
+	Kinesis        types.Object `tfsdk:"kinesis"`
+	Snowflake      types.Object `tfsdk:"snowflake"`
+	Databricks     types.Object `tfsdk:"databricks"`
+	Postgres       types.Object `tfsdk:"postgres"`
+	UpdatedAt      types.String `tfsdk:"updated_at"`
+	CreatedAt      types.String `tfsdk:"created_at"`
 }
 
 func (d *StoreDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
@@ -319,6 +318,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var discard any
 		var name string
@@ -333,14 +333,20 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			return
 		}
 		if name == store.Name.ValueString() {
-			store.Type = basetypes.NewStringValue(kind)
-			store.AccessRegion = basetypes.NewStringValue(accessRegion)
-			store.State = basetypes.NewStringValue(state)
-			store.Owner = basetypes.NewStringValue(owner)
-			store.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			store.UpdatedAt = basetypes.NewStringValue(updatedAt.Format(time.RFC3339))
+			found = true
+			store.Type = types.StringValue(kind)
+			store.AccessRegion = types.StringValue(accessRegion)
+			store.State = types.StringValue(state)
+			store.Owner = types.StringValue(owner)
+			store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			store.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 			break
 		}
+	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading store", "store not found")
+		return
 	}
 
 	row := conn.QueryRowContext(ctx, fmt.Sprintf(`DESCRIBE STORE "%s";`, store.Name.ValueString()))
@@ -358,21 +364,21 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	var dg diag.Diagnostics
 	switch strings.ToLower(store.Type.ValueString()) {
 	case "kafka":
-		store.Kafka, dg = basetypes.NewObjectValueFrom(ctx, KafkaDatasourceProperties{}.AttributeTypes(), KafkaDatasourceProperties{
-			Uris:                    basetypes.NewStringValue(uri),
-			SchemaRegistryName:      basetypes.NewStringPointerValue(schemaRegistryName),
-			TlsDisabled:             basetypes.NewBoolValue(!tlsEnabled),
-			TlsVerifyServerHostname: basetypes.NewBoolValue(verifyHostname),
+		store.Kafka, dg = types.ObjectValueFrom(ctx, KafkaDatasourceProperties{}.AttributeTypes(), KafkaDatasourceProperties{
+			Uris:                    types.StringValue(uri),
+			SchemaRegistryName:      types.StringPointerValue(schemaRegistryName),
+			TlsDisabled:             types.BoolValue(!tlsEnabled),
+			TlsVerifyServerHostname: types.BoolValue(verifyHostname),
 		})
 	case "confluentkafka":
-		store.ConfluentKafka, dg = basetypes.NewObjectValueFrom(ctx, ConfluentKafkaDatasourceProperties{}.AttributeTypes(), ConfluentKafkaDatasourceProperties{
-			Uris:               basetypes.NewStringValue(uri),
-			SchemaRegistryName: basetypes.NewStringPointerValue(schemaRegistryName),
+		store.ConfluentKafka, dg = types.ObjectValueFrom(ctx, ConfluentKafkaDatasourceProperties{}.AttributeTypes(), ConfluentKafkaDatasourceProperties{
+			Uris:               types.StringValue(uri),
+			SchemaRegistryName: types.StringPointerValue(schemaRegistryName),
 		})
 	case "kinesis":
-		store.Kinesis, dg = basetypes.NewObjectValueFrom(ctx, KinesisDatasourceProperties{}.AttributeTypes(), KinesisDatasourceProperties{
-			Uris:               basetypes.NewStringValue(uri),
-			SchemaRegistryName: basetypes.NewStringPointerValue(schemaRegistryName),
+		store.Kinesis, dg = types.ObjectValueFrom(ctx, KinesisDatasourceProperties{}.AttributeTypes(), KinesisDatasourceProperties{
+			Uris:               types.StringValue(uri),
+			SchemaRegistryName: types.StringPointerValue(schemaRegistryName),
 		})
 	case "snowflake":
 		details := map[string]any{}
@@ -381,11 +387,11 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			return
 		}
 
-		store.Snowflake, dg = basetypes.NewObjectValueFrom(ctx, SnowflakeDatasourceProperties{}.AttributeTypes(), SnowflakeDatasourceProperties{
-			Uris:          basetypes.NewStringValue(uri),
-			AccountId:     basetypes.NewStringValue(details["account_id"].(string)),
-			WarehouseName: basetypes.NewStringValue(details["warehouse_name"].(string)),
-			RoleName:      basetypes.NewStringValue(details["role_name"].(string)),
+		store.Snowflake, dg = types.ObjectValueFrom(ctx, SnowflakeDatasourceProperties{}.AttributeTypes(), SnowflakeDatasourceProperties{
+			Uris:          types.StringValue(uri),
+			AccountId:     types.StringValue(details["account_id"].(string)),
+			WarehouseName: types.StringValue(details["warehouse_name"].(string)),
+			RoleName:      types.StringValue(details["role_name"].(string)),
 		})
 	case "databricks":
 		details := map[string]any{}
@@ -394,15 +400,15 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			return
 		}
 
-		store.Databricks, dg = basetypes.NewObjectValueFrom(ctx, DatabricksDatasourceProperties{}.AttributeTypes(), DatabricksDatasourceProperties{
-			Uris:          basetypes.NewStringValue(uri),
-			WarehouseId:   basetypes.NewStringValue(details["sql_warehouse_id"].(string)),
-			CloudS3Bucket: basetypes.NewStringValue(details["cloud_provider_bucket"].(string)),
-			CloudRegion:   basetypes.NewStringValue(details["cloud_provider_region"].(string)),
+		store.Databricks, dg = types.ObjectValueFrom(ctx, DatabricksDatasourceProperties{}.AttributeTypes(), DatabricksDatasourceProperties{
+			Uris:          types.StringValue(uri),
+			WarehouseId:   types.StringValue(details["sql_warehouse_id"].(string)),
+			CloudS3Bucket: types.StringValue(details["cloud_provider_bucket"].(string)),
+			CloudRegion:   types.StringValue(details["cloud_provider_region"].(string)),
 		})
 	case "postgres":
-		store.Postgres, dg = basetypes.NewObjectValueFrom(ctx, PostgresDatasourceProperties{}.AttributeTypes(), PostgresDatasourceProperties{
-			Uris: basetypes.NewStringValue(uri),
+		store.Postgres, dg = types.ObjectValueFrom(ctx, PostgresDatasourceProperties{}.AttributeTypes(), PostgresDatasourceProperties{
+			Uris: types.StringValue(uri),
 		})
 	}
 	resp.Diagnostics.Append(dg...)

@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &DatabasesDataSource{}
@@ -62,7 +62,7 @@ func (d *DatabasesDataSource) Metadata(ctx context.Context, req datasource.Metad
 }
 
 type DatabasesDatasourceData struct {
-	Items basetypes.ListValue `tfsdk:"items"`
+	Items types.List `tfsdk:"items"`
 }
 
 func (d *DatabasesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -98,14 +98,14 @@ func (d *DatabasesDataSource) Read(ctx context.Context, req datasource.ReadReque
 			return
 		}
 		items = append(items, DatabaseDatasourceData{
-			Name:      basetypes.NewStringValue(name),
-			Owner:     basetypes.NewStringValue(owner),
-			CreatedAt: basetypes.NewStringValue(createdAt.Format(time.RFC3339)),
+			Name:      types.StringValue(name),
+			Owner:     types.StringValue(owner),
+			CreatedAt: types.StringValue(createdAt.Format(time.RFC3339)),
 		})
 	}
 
 	var dg diag.Diagnostics
-	databases.Items, dg = basetypes.NewListValueFrom(ctx, databases.Items.ElementType(ctx), items)
+	databases.Items, dg = types.ListValueFrom(ctx, databases.Items.ElementType(ctx), items)
 	resp.Diagnostics.Append(dg...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &databases)...)

@@ -12,7 +12,7 @@ import (
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &SchemaDataSource{}
@@ -101,6 +101,7 @@ func (d *SchemaDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer rows.Close()
 
+	found := false
 	for rows.Next() {
 		var discard any
 		var name string
@@ -111,10 +112,17 @@ func (d *SchemaDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			return
 		}
 		if name == schema.Name.ValueString() {
-			schema.Owner = basetypes.NewStringValue(owner)
-			schema.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			found = true
+			schema.Owner = types.StringValue(owner)
+			schema.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			break
 		}
 	}
+
+	if !found {
+		resp.Diagnostics.AddError("error loading schema", "schema not found")
+		return
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &schema)...)
 }

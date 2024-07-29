@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &EntitiesDataSource{}
@@ -48,9 +48,9 @@ func (d *EntitiesDataSource) Metadata(ctx context.Context, req datasource.Metada
 }
 
 type EntitiesDataSourceData struct {
-	Store         basetypes.StringValue `tfsdk:"store"`
-	ParentPath    basetypes.ListValue   `tfsdk:"parent_path"`
-	ChildEntities basetypes.ListValue   `tfsdk:"child_entities"`
+	Store         types.String `tfsdk:"store"`
+	ParentPath    types.List   `tfsdk:"parent_path"`
+	ChildEntities types.List   `tfsdk:"child_entities"`
 }
 
 func (d *EntitiesDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -66,12 +66,12 @@ func (d *EntitiesDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 			"parent_path": schema.ListAttribute{
 				Description: "Path to parent entity",
 				Optional:    true,
-				ElementType: basetypes.StringType{},
+				ElementType: types.StringType,
 			},
 			"child_entities": schema.ListAttribute{
 				Description: "Child entities",
 				Computed:    true,
-				ElementType: basetypes.StringType{},
+				ElementType: types.StringType,
 			},
 		},
 	}
@@ -135,7 +135,7 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 
 	var dg diag.Diagnostics
-	entityData.ChildEntities, dg = basetypes.NewListValueFrom(ctx, basetypes.StringType{}, items)
+	entityData.ChildEntities, dg = types.ListValueFrom(ctx, types.StringType, items)
 	resp.Diagnostics.Append(dg...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &entityData)...)

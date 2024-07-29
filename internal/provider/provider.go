@@ -17,9 +17,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"k8s.io/utils/ptr"
 
 	gods "github.com/deltastreaminc/go-deltastream"
@@ -46,11 +48,11 @@ type DeltaStreamProvider struct {
 
 // DeltaStreamProviderModel describes the provider data model.
 type DeltaStreamProviderModel struct {
-	APIKey             *string `tfsdk:"api_key"`
-	Server             *string `tfsdk:"server"`
-	InsecureSkipVerify *bool   `tfsdk:"insecure_skip_verify"`
-	Organization       *string `tfsdk:"organization"`
-	Role               *string `tfsdk:"role"`
+	APIKey             types.String `tfsdk:"api_key"`
+	Server             types.String `tfsdk:"server"`
+	InsecureSkipVerify types.Bool   `tfsdk:"insecure_skip_verify"`
+	Organization       types.String `tfsdk:"organization"`
+	Role               types.String `tfsdk:"role"`
 }
 
 func (p *DeltaStreamProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -135,40 +137,48 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	var data DeltaStreamProviderModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if osEnv := os.Getenv("DELTASTREAM_ORGANIZATION"); data.Organization == nil && osEnv != "" {
-		data.Organization = ptr.To(osEnv)
+	cfg := &config.DeltaStreamProviderCfg{
+		Organization: os.Getenv("DELTASTREAM_ORGANIZATION"),
+		Role:         os.Getenv("DELTASTREAM_ROLE"),
+		SessionID:    ptr.To(os.Getenv("DELTASTREAM_SESSION_ID")),
 	}
-	if roleEnv := os.Getenv("DELTASTREAM_ROLE"); data.Role == nil && roleEnv != "" {
-		data.Role = ptr.To(roleEnv)
+	apiKey := os.Getenv("DELTASTREAM_API_KEY")
+	server := os.Getenv("DELTASTREAM_SERVER")
+	debug := os.Getenv("DELTASTREAM_DEBUG") != ""
+	insecureSkipVerify := os.Getenv("DELTASTREAM_INSECURE_SKIP_VERIFY") != ""
+
+	if !data.Organization.IsNull() {
+		cfg.Organization = data.Organization.ValueString()
 	}
-	if apiKeyEnv := os.Getenv("DELTASTREAM_API_KEY"); data.APIKey == nil && apiKeyEnv != "" {
-		data.APIKey = ptr.To(apiKeyEnv)
+	if !data.Role.IsNull() {
+		cfg.Role = data.Role.ValueString()
 	}
-	if debug := os.Getenv("DELTASTREAM_DEBUG"); data.InsecureSkipVerify == nil && debug != "" {
-		data.InsecureSkipVerify = ptr.To(true)
+	if !data.APIKey.IsNull() {
+		apiKey = data.APIKey.ValueString()
 	}
-	if insecure := os.Getenv("DELTASTREAM_INSECURE_SKIP_VERIFY"); data.InsecureSkipVerify == nil && insecure != "" {
-		data.InsecureSkipVerify = ptr.To(true)
+	if !data.Server.IsNull() {
+		server = data.Server.ValueString()
 	}
 
-	server := "https://api.deltastream.io/v2"
-	if os.Getenv("DELTASTREAM_SERVER") != "" {
-		server = os.Getenv("DELTASTREAM_SERVER")
+	if cfg.Organization == "" {
+		resp.Diagnostics.AddAttributeError(path.Root("organization"), "Organization ID not specified", "Organization ID must be specified in the configuration or via the DELTASTREAM_ORGANIZATION environment variable")
 	}
-	if data.Server != nil {
-		server = *data.Server
+	if cfg.Role == "" {
+		resp.Diagnostics.AddAttributeWarning(path.Root("role"), "Role not specified", "Role not specified in the configuration or via the DELTASTREAM_ORGANIZATION environment variable, defaulting to sysadmin")
+		cfg.Role = "sysadmin"
+	}
+	if apiKey == "" {
+		resp.Diagnostics.AddAttributeError(path.Root("api_key"), "API key not specified", "API key must be specified in the configuration or via the DELTASTREAM_API_KEY environment variable")
+	}
+	if server == "" {
+		server = "https://api.deltastream.io/v2"
 	}
 
-	if data.APIKey == nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("API key is required"))
-		return
-	}
-	connOptions := []gods.ConnectionOption{gods.WithStaticToken(*data.APIKey)}
+	connOptions := []gods.ConnectionOption{gods.WithStaticToken(apiKey)}
 	var sessionID *string
 	if v := os.Getenv("DELTASTREAM_SESSION_ID"); v != "" {
 		if v == "RANDOM" {
@@ -179,7 +189,7 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 	}
 
 	tlsConfig := &tls.Config{}
-	if data.InsecureSkipVerify != nil && *data.InsecureSkipVerify {
+	if insecureSkipVerify {
 		tlsConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
@@ -202,7 +212,7 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		sessionID: sessionID,
 	})
 
-	if debug := os.Getenv("DELTASTREAM_DEBUG"); debug != "" {
+	if debug {
 		transport = &debugTransport{
 			r:         t,
 			stderr:    os.Stderr,
@@ -220,24 +230,14 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "Failed to configure connection", err)
 		return
 	}
-	if data.Organization == nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid configuration", fmt.Errorf("organization is required"))
+	cfg.Db = sql.OpenDB(connector)
+
+	if resp.Diagnostics.HasError() {
 		return
 	}
-	db := sql.OpenDB(connector)
 
-	resp.ResourceData = &config.DeltaStreamProviderCfg{
-		Db:           db,
-		Organization: *data.Organization,
-		Role:         *data.Role,
-		SessionID:    sessionID,
-	}
-	resp.DataSourceData = &config.DeltaStreamProviderCfg{
-		Db:           db,
-		Organization: *data.Organization,
-		Role:         *data.Role,
-		SessionID:    sessionID,
-	}
+	resp.ResourceData = cfg
+	resp.DataSourceData = cfg
 }
 
 func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.Resource {

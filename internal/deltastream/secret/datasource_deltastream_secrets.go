@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &SecretsDataSource{}
@@ -62,7 +62,7 @@ func (d *SecretsDataSource) Metadata(ctx context.Context, req datasource.Metadat
 }
 
 type SecretsDatasourceData struct {
-	Items basetypes.ListValue `tfsdk:"items"`
+	Items types.List `tfsdk:"items"`
 }
 
 func (d *SecretsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -102,19 +102,19 @@ func (d *SecretsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			return
 		}
 		items = append(items, SecretDatasourceData{
-			Name:         basetypes.NewStringValue(name),
-			Type:         basetypes.NewStringValue(stype),
-			Description:  basetypes.NewStringValue(description),
-			AccessRegion: basetypes.NewStringValue(region),
-			Owner:        basetypes.NewStringValue(owner),
-			Status:       basetypes.NewStringValue(status),
-			CreatedAt:    basetypes.NewStringValue(createdAt.Format(time.RFC3339)),
-			UpdatedAt:    basetypes.NewStringValue(updatedAt.Format(time.RFC3339)),
+			Name:         types.StringValue(name),
+			Type:         types.StringValue(stype),
+			Description:  types.StringValue(description),
+			AccessRegion: types.StringValue(region),
+			Owner:        types.StringValue(owner),
+			Status:       types.StringValue(status),
+			CreatedAt:    types.StringValue(createdAt.Format(time.RFC3339)),
+			UpdatedAt:    types.StringValue(updatedAt.Format(time.RFC3339)),
 		})
 	}
 
 	var dg diag.Diagnostics
-	secrets.Items, dg = basetypes.NewListValueFrom(ctx, secrets.Items.ElementType(ctx), items)
+	secrets.Items, dg = types.ListValueFrom(ctx, secrets.Items.ElementType(ctx), items)
 	resp.Diagnostics.Append(dg...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &secrets)...)

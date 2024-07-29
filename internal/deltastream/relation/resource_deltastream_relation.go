@@ -13,7 +13,9 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/sethvargo/go-retry"
 
@@ -34,18 +36,18 @@ type RelationResource struct {
 }
 
 type RelationResourceData struct {
-	Database basetypes.StringValue `tfsdk:"database"`
-	Schema   basetypes.StringValue `tfsdk:"schema"`
-	Name     basetypes.StringValue `tfsdk:"name"`
-	Store    basetypes.StringValue `tfsdk:"store"`
-	Sql      basetypes.StringValue `tfsdk:"sql"`
+	Database types.String `tfsdk:"database"`
+	Schema   types.String `tfsdk:"schema"`
+	Name     types.String `tfsdk:"name"`
+	Store    types.String `tfsdk:"store"`
+	Sql      types.String `tfsdk:"sql"`
 
-	FQN       basetypes.StringValue `tfsdk:"fqn"`
-	Type      basetypes.StringValue `tfsdk:"type"`
-	State     basetypes.StringValue `tfsdk:"state"`
-	Owner     basetypes.StringValue `tfsdk:"owner"`
-	CreatedAt basetypes.StringValue `tfsdk:"created_at"`
-	UpdatedAt basetypes.StringValue `tfsdk:"updated_at"`
+	FQN       types.String `tfsdk:"fqn"`
+	Type      types.String `tfsdk:"type"`
+	State     types.String `tfsdk:"state"`
+	Owner     types.String `tfsdk:"owner"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
 }
 
 func (d *RelationResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -83,14 +85,23 @@ func (d *RelationResource) Schema(ctx context.Context, req resource.SchemaReques
 				Description: "Name of the Relation",
 				Computed:    true,
 				Validators:  util.IdentifierValidators,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"fqn": schema.StringAttribute{
 				Description: "Fully qualified name of the Relation",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"type": schema.StringAttribute{
 				Description: "Type of the Relation",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 			"state": schema.StringAttribute{
 				Description: "State of the Relation",
@@ -221,7 +232,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create relation", err)
 		return
 	}
-	relation.FQN = basetypes.NewStringValue(artifactDDL.Name)
+	relation.FQN = types.StringValue(artifactDDL.Name)
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
 		relation, err = d.updateComputed(ctx, conn, relation)
@@ -269,12 +280,12 @@ func (d *RelationResource) updateComputed(ctx context.Context, conn *sql.Conn, r
 			return rel, err
 		}
 		if fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name) == rel.FQN.ValueString() {
-			rel.Name = basetypes.NewStringValue(name)
-			rel.Type = basetypes.NewStringValue(kind)
-			rel.State = basetypes.NewStringValue(state)
-			rel.Owner = basetypes.NewStringValue(owner)
-			rel.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-			rel.UpdatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			rel.Name = types.StringValue(name)
+			rel.Type = types.StringValue(kind)
+			rel.State = types.StringValue(state)
+			rel.Owner = types.StringValue(owner)
+			rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+			rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			return rel, nil
 		}
 	}
@@ -387,6 +398,7 @@ func (d *RelationResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if err != nil {
 		var godsErr gods.ErrSQLError
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidRelation {
+			resp.State.RemoveResource(ctx)
 			return
 		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to update state", err)

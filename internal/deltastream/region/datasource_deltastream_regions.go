@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ datasource.DataSource = &RegionsDataSource{}
@@ -61,7 +61,7 @@ func (d *RegionsDataSource) Metadata(ctx context.Context, req datasource.Metadat
 }
 
 type SecretsDatasourceData struct {
-	Items basetypes.ListValue `tfsdk:"items"`
+	Items types.List `tfsdk:"items"`
 }
 
 func (d *RegionsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -96,14 +96,14 @@ func (d *RegionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			return
 		}
 		items = append(items, RegionDataSourceData{
-			Name:   basetypes.NewStringValue(name),
-			Cloud:  basetypes.NewStringValue(cloud),
-			Region: basetypes.NewStringValue(region),
+			Name:   types.StringValue(name),
+			Cloud:  types.StringValue(cloud),
+			Region: types.StringValue(region),
 		})
 	}
 
 	var dg diag.Diagnostics
-	regions.Items, dg = basetypes.NewListValueFrom(ctx, regions.Items.ElementType(ctx), items)
+	regions.Items, dg = types.ListValueFrom(ctx, regions.Items.ElementType(ctx), items)
 	resp.Diagnostics.Append(dg...)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &regions)...)

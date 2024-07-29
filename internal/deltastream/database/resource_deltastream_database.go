@@ -14,7 +14,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/sethvargo/go-retry"
 
@@ -35,9 +35,9 @@ type DatabaseResource struct {
 }
 
 type DatabaseResourceData struct {
-	Name      basetypes.StringValue `tfsdk:"name"`
-	Owner     basetypes.StringValue `tfsdk:"owner"`
-	CreatedAt basetypes.StringValue `tfsdk:"created_at"`
+	Name      types.String `tfsdk:"name"`
+	Owner     types.String `tfsdk:"owner"`
+	CreatedAt types.String `tfsdk:"created_at"`
 }
 
 func (d *DatabaseResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -157,11 +157,12 @@ func (d *DatabaseResource) updateComputed(ctx context.Context, conn *sql.Conn, d
 			return db, err
 		}
 		if name == db.Name.ValueString() {
-			db.Owner = basetypes.NewStringValue(owner)
-			db.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+			db.Owner = types.StringValue(owner)
+			db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 			return db, nil
 		}
 	}
+
 	return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
 }
 
@@ -222,6 +223,11 @@ func (d *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	database, err = d.updateComputed(ctx, conn, database)
 	if err != nil {
+		var godsErr gods.ErrSQLError
+		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidDatabase {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read database state", err)
 		return
 	}
