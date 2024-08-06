@@ -47,6 +47,10 @@ Optional:
 - `topic_replicas` (Number) Number of replicas
 - `value_descriptor` (String) Protobuf descriptor for value
 
+Read-Only:
+
+- `all_configs` (Map of String) All topic configurations including any server set configurations
+
 
 <a id="nestedatt--kinesis_properties"></a>
 ### Nested Schema for `kinesis_properties`
