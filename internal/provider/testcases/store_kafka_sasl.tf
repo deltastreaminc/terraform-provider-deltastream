@@ -32,6 +32,9 @@ resource "deltastream_store" "kafka_with_sasl" {
     sasl_hash_function = "SHA512"
     sasl_username      = var.pub_msk_username
     sasl_password      = var.pub_msk_password
+    config = {
+      "cleanup.policy"                      = "compact"
+    }
   }
 }
 

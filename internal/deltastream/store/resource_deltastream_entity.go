@@ -16,6 +16,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -51,6 +54,7 @@ type KafkaStoreEntityResourceData struct {
 	KeyDescriptor   types.String `tfsdk:"key_descriptor"`
 	ValueDescriptor types.String `tfsdk:"value_descriptor"`
 	Configs         types.Map    `tfsdk:"configs"`
+	AllConfigs      types.Map    `tfsdk:"all_configs"`
 }
 
 func (KafkaStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
@@ -60,6 +64,9 @@ func (KafkaStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
 		"key_descriptor":   types.StringType,
 		"value_descriptor": types.StringType,
 		"configs": types.MapType{
+			ElemType: types.StringType,
+		},
+		"all_configs": types.MapType{
 			ElemType: types.StringType,
 		},
 	}
@@ -135,11 +142,17 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 						Description: "Number of partitions",
 						Optional:    true,
 						Computed:    true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.RequiresReplace(),
+						},
 					},
 					"topic_replicas": schema.Int64Attribute{
 						Description: "Number of replicas",
 						Optional:    true,
 						Computed:    true,
+						PlanModifiers: []planmodifier.Int64{
+							int64planmodifier.RequiresReplace(),
+						},
 					},
 					"key_descriptor": schema.StringAttribute{
 						Description: "Protobuf descriptor for key",
@@ -154,6 +167,14 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 					"configs": schema.MapAttribute{
 						Description: "Additional topic configurations",
 						Optional:    true,
+						Computed:    true,
+						ElementType: types.StringType,
+						PlanModifiers: []planmodifier.Map{
+							mapplanmodifier.RequiresReplace(),
+						},
+					},
+					"all_configs": schema.MapAttribute{
+						Description: "All topic configurations including any server set configurations",
 						Computed:    true,
 						ElementType: types.StringType,
 					},
@@ -292,8 +313,12 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 		if !kafkaProperties.TopicReplicas.IsNull() && !kafkaProperties.TopicReplicas.IsUnknown() {
 			properties = append(properties, fmt.Sprintf("'kafka.replicas' = %d", kafkaProperties.TopicReplicas.ValueInt64()))
 		}
-		for k, v := range kafkaProperties.Configs.Elements() {
-			properties = append(properties, fmt.Sprintf("'%s' = '%s'", k, v.(types.String).ValueString()))
+
+		if !kafkaProperties.Configs.IsNull() {
+			configProps := kafkaProperties.Configs.Elements()
+			for k, v := range configProps {
+				properties = append(properties, fmt.Sprintf("'kafka.topic.%s' = '%s'", k, v.(*types.String).ValueString()))
+			}
 		}
 	case "Kinesis":
 		var kinesisProperties KinesisStoreEntityResourceData
@@ -438,17 +463,26 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 			return
 		}
 		var kafkaProperties KafkaStoreEntityResourceData
+		if !entity.KafkaProperties.IsNull() && !entity.KafkaProperties.IsUnknown() {
+			diags.Append(entity.KafkaProperties.As(ctx, &kafkaProperties, basetypes.ObjectAsOptions{})...)
+			if diags.HasError() {
+				return
+			}
+		}
 		kafkaProperties.TopicPartitions = types.Int64Value(topicPartitions)
 		kafkaProperties.TopicReplicas = types.Int64Value(topicReplicas)
 		kafkaProperties.KeyDescriptor = types.StringPointerValue(keyDescriptor)
 		kafkaProperties.ValueDescriptor = types.StringPointerValue(valueDescriptor)
-		configs := map[string]string{}
-		if err := json.Unmarshal([]byte(configJSON), &configs); err != nil {
+		if kafkaProperties.Configs.IsNull() || kafkaProperties.Configs.IsUnknown() {
+			kafkaProperties.Configs = types.MapNull(types.StringType)
+		}
+		configsOut := map[string]string{}
+		if err := json.Unmarshal([]byte(configJSON), &configsOut); err != nil {
 			diags.AddError("failed to read entity configuration", err.Error())
 			return
 		}
 		var d diag.Diagnostics
-		kafkaProperties.Configs, d = types.MapValueFrom(ctx, types.StringType, configs)
+		kafkaProperties.AllConfigs, d = types.MapValueFrom(ctx, types.StringType, configsOut)
 		diags.Append(d...)
 		if diags.HasError() {
 			return
@@ -467,6 +501,12 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 			return
 		}
 		var kinesisProperties KinesisStoreEntityResourceData
+		if !entity.KinesisProperties.IsNull() && !entity.KinesisProperties.IsUnknown() {
+			diags.Append(entity.KinesisProperties.As(ctx, &kinesisProperties, basetypes.ObjectAsOptions{})...)
+			if diags.HasError() {
+				return
+			}
+		}
 		kinesisProperties.KinesisShards = types.Int64Value(topicShards)
 		kinesisProperties.Descriptor = types.StringValue(descriptor)
 		var d diag.Diagnostics
@@ -487,6 +527,12 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 			return
 		}
 		var snowflakeProperties SnowflakeStoreEntityResourceData
+		if !entity.SnowflakeProperties.IsNull() && !entity.SnowflakeProperties.IsUnknown() {
+			diags.Append(entity.SnowflakeProperties.As(ctx, &snowflakeProperties, basetypes.ObjectAsOptions{})...)
+			if diags.HasError() {
+				return
+			}
+		}
 		var d diag.Diagnostics
 		snowflakeProperties.Details, d = types.MapValueFrom(ctx, types.StringType, detail)
 		diags.Append(d...)
@@ -505,6 +551,12 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 			return
 		}
 		var databricksProperties DatabricksStoreEntityResourceData
+		if !entity.DatabricksProperties.IsNull() && !entity.DatabricksProperties.IsUnknown() {
+			diags.Append(entity.DatabricksProperties.As(ctx, &databricksProperties, basetypes.ObjectAsOptions{})...)
+			if diags.HasError() {
+				return
+			}
+		}
 		var d diag.Diagnostics
 		databricksProperties.Details, d = types.MapValueFrom(ctx, types.StringType, detail)
 		diags.Append(d...)
@@ -523,6 +575,12 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 			return
 		}
 		var postgresProperties PostgresStoreEntityResourceData
+		if !entity.PostgresProperties.IsNull() && !entity.PostgresProperties.IsUnknown() {
+			diags.Append(entity.PostgresProperties.As(ctx, &postgresProperties, basetypes.ObjectAsOptions{})...)
+			if diags.HasError() {
+				return
+			}
+		}
 		var d diag.Diagnostics
 		postgresProperties.Details, d = types.MapValueFrom(ctx, types.StringType, detail)
 		diags.Append(d...)
