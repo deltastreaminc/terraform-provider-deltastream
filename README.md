@@ -26,5 +26,4 @@ provider "deltastream" {
 }
 ```
 
-For more information on provider configuration see the [provider docs on the Terraform registry](https://registry.terraform.io/providers/deltastream/deltastream/latest/docs).
-
+For more information on provider configuration see the [provider docs on the Terraform registry](https://registry.terraform.io/providers/deltastreaminc/deltastream/latest/docs).
