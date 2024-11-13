@@ -128,12 +128,21 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST RELATIONS IN SCHEMA "%s"."%s";`, rels.Database.ValueString(), rels.Schema.ValueString()))
+	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`SELECT name, relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE database_name = '%s' AND schema_name = '%s';`, rels.Database.ValueString(), rels.Schema.ValueString()))
 	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to load relations", err)
 		return
 	}
 	defer rows.Close()
+
+	var (
+		name      string
+		kind      string
+		owner     string
+		state     string
+		createdAt time.Time
+		updatedAt time.Time
+	)
 
 	relList := []RelationDataSourceData{}
 	for rows.Next() {
@@ -141,29 +150,21 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 			Database: rels.Database,
 			Schema:   rels.Schema,
 		}
-		var (
-			name           string
-			kind           string
-			owner          string
-			state          string
-			propertiesJSON string
-			createdAt      time.Time
-			updatedAt      time.Time
-		)
-
-		if err := rows.Scan(&name, &kind, &owner, &state, &propertiesJSON, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&name, &kind, &owner, &state, &createdAt, &updatedAt); err != nil {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read relation", err)
 			return
 		}
-		rel.Name = basetypes.NewStringValue(name)
-		rel.FQN = basetypes.NewStringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
-		rel.Owner = basetypes.NewStringValue(owner)
-		rel.Type = basetypes.NewStringValue(kind)
-		rel.State = basetypes.NewStringValue(state)
-		rel.CreatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
-		rel.UpdatedAt = basetypes.NewStringValue(createdAt.Format(time.RFC3339))
+
+		rel.Name = types.StringValue(name)
+		rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
+		rel.Owner = types.StringValue(owner)
+		rel.Type = types.StringValue(kind)
+		rel.State = types.StringValue(state)
+		rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+		rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 		relList = append(relList, rel)
 	}
+
 	var dg diag.Diagnostics
 	rels.Relations, dg = basetypes.NewListValueFrom(ctx, rels.Relations.ElementType(ctx), relList)
 	resp.Diagnostics.Append(dg...)

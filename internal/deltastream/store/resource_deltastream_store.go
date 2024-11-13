@@ -564,37 +564,34 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (d *StoreResource) updateComputed(ctx context.Context, conn *sql.Conn, store StoreResourceData) (StoreResourceData, error) {
-	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
-	if err != nil {
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores" WHERE name = '%s';`, store.Name.ValueString()))
+	if row.Err() != nil {
+		if errors.Is(row.Err(), sql.ErrNoRows) {
+			return store, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidStore}
+		}
+
+		return store, row.Err()
+	}
+
+	var accessRegion string
+	var kind string
+	var state string
+	var owner string
+	var createdAt time.Time
+	var updatedAt time.Time
+	if err := row.Scan(&accessRegion, &kind, &state, &owner, &createdAt, &updatedAt); err != nil {
 		return store, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var discard any
-		var name string
-		var accessRegion string
-		var kind string
-		var state string
-		var owner string
-		var createdAt time.Time
-		var updatedAt time.Time
-		if err := rows.Scan(&name, &kind, &accessRegion, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
-			return store, err
-		}
-		if name == store.Name.ValueString() {
-			store.Type = types.StringValue(kind)
-			store.AccessRegion = types.StringValue(accessRegion)
-			store.State = types.StringValue(state)
-			store.Owner = types.StringValue(owner)
-			store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			store.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
-			store.Owner = types.StringValue(owner)
-			store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			return store, nil
-		}
-	}
-	return StoreResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidStore}
+	store.Type = types.StringValue(kind)
+	store.AccessRegion = types.StringValue(accessRegion)
+	store.State = types.StringValue(state)
+	store.Owner = types.StringValue(owner)
+	store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	store.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
+	store.Owner = types.StringValue(owner)
+	store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return store, nil
 }
 
 func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

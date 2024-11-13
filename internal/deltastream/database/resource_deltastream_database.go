@@ -186,12 +186,17 @@ func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, database.Name.ValueString())); err != nil {
-		var sqlErr gods.ErrSQLError
-		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
-			return
+	if err = retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
+		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, database.Name.ValueString())); err != nil {
+			var sqlErr gods.ErrSQLError
+			if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
+				return retry.RetryableError(err)
+			}
 		}
+		return nil
+	}); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
+		return
 	}
 	tflog.Info(ctx, "Database deleted", map[string]any{"name": database.Name.ValueString()})
 }

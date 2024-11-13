@@ -259,37 +259,29 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 func (d *RelationResource) updateComputed(ctx context.Context, conn *sql.Conn, rel RelationResourceData) (RelationResourceData, error) {
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST RELATIONS IN SCHEMA "%s"."%s";`, rel.Database.ValueString(), rel.Schema.ValueString()))
-	if err != nil {
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT name, relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE database_name || '.' || schema_name || '.' || name = '%s';`, rel.FQN.ValueString()))
+	if err := row.Err(); err != nil {
 		return rel, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var (
-			name           string
-			kind           string
-			owner          string
-			state          string
-			propertiesJSON string
-			createdAt      time.Time
-			updatedAt      time.Time
-		)
-
-		if err := rows.Scan(&name, &kind, &owner, &state, &propertiesJSON, &createdAt, &updatedAt); err != nil {
-			return rel, err
-		}
-		if fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name) == rel.FQN.ValueString() {
-			rel.Name = types.StringValue(name)
-			rel.Type = types.StringValue(kind)
-			rel.State = types.StringValue(state)
-			rel.Owner = types.StringValue(owner)
-			rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			return rel, nil
-		}
+	var (
+		name      string
+		kind      string
+		owner     string
+		state     string
+		createdAt time.Time
+		updatedAt time.Time
+	)
+	if err := row.Scan(&name, &kind, &owner, &state, &createdAt, &updatedAt); err != nil {
+		return rel, err
 	}
-	return rel, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidRelation}
+	rel.Name = types.StringValue(name)
+	rel.Owner = types.StringValue(owner)
+	rel.Type = types.StringValue(kind)
+	rel.State = types.StringValue(state)
+	rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return rel, nil
 }
 
 func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -321,9 +313,14 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
-		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DESCRIBE RELATION %s;`, relation.FQN.ValueString())); err != nil {
-			var sqlErr gods.ErrSQLError
-			if errors.As(err, &sqlErr) && sqlErr.SQLCode == gods.SqlStateInvalidRelation {
+		row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT 1 FROM deltastream.sys."relations" WHERE database_name = '%s' AND schema_name = '%s' AND name = '%s';`, relation.Database.ValueString(), relation.Schema.ValueString(), relation.Name.ValueString()))
+		if err := row.Err(); err != nil {
+			return err
+		}
+
+		var discard any
+		if err := row.Scan(&discard); err != nil {
+			if err == sql.ErrNoRows {
 				return nil
 			}
 			return err
