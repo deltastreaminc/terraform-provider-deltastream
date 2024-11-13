@@ -5,10 +5,13 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	gods "github.com/deltastreaminc/go-deltastream"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 	"sigs.k8s.io/yaml"
@@ -311,45 +314,37 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
-		return
-	}
-	defer rows.Close()
-
-	found := false
-	for rows.Next() {
-		var discard any
-		var name string
-		var accessRegion string
-		var kind string
-		var state string
-		var owner string
-		var createdAt time.Time
-		var updatedAt time.Time
-		if err := rows.Scan(&name, &kind, &accessRegion, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores" WHERE name = '%s';`, store.Name.ValueString()))
+	if row.Err() != nil {
+		if errors.Is(row.Err(), sql.ErrNoRows) {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read store details", &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidStore})
 			return
 		}
-		if name == store.Name.ValueString() {
-			found = true
-			store.Type = types.StringValue(kind)
-			store.AccessRegion = types.StringValue(accessRegion)
-			store.State = types.StringValue(state)
-			store.Owner = types.StringValue(owner)
-			store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			store.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
-			break
-		}
-	}
-
-	if !found {
-		resp.Diagnostics.AddError("error loading store", "store not found")
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read store details", row.Err())
 		return
 	}
 
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`DESCRIBE STORE "%s";`, store.Name.ValueString()))
+	var accessRegion string
+	var kind string
+	var state string
+	var owner string
+	var createdAt time.Time
+	var updatedAt time.Time
+	if err := row.Scan(&accessRegion, &kind, &state, &owner, &createdAt, &updatedAt); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read store details", err)
+		return
+	}
+
+	store.Type = types.StringValue(kind)
+	store.AccessRegion = types.StringValue(accessRegion)
+	store.State = types.StringValue(state)
+	store.Owner = types.StringValue(owner)
+	store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	store.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
+	store.Owner = types.StringValue(owner)
+	store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+
+	row = conn.QueryRowContext(ctx, fmt.Sprintf(`DESCRIBE STORE "%s";`, store.Name.ValueString()))
 	var metadataJSON string
 	var uri string
 	var detailsJSON string
