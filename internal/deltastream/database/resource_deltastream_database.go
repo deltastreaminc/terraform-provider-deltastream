@@ -142,28 +142,22 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 func (d *DatabaseResource) updateComputed(ctx context.Context, conn *sql.Conn, db DatabaseResourceData) (DatabaseResourceData, error) {
-	rows, err := conn.QueryContext(ctx, `LIST DATABASES;`)
-	if err != nil {
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT "owner", created_at FROM deltastream.sys."databases" WHERE name = '%s';`, db.Name.ValueString()))
+	if err := row.Err(); err != nil {
 		return db, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var discard any
-		var name string
-		var owner string
-		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			return db, err
+	var owner string
+	var createdAt time.Time
+	if err := row.Scan(&owner, &createdAt); err != nil {
+		if err == sql.ErrNoRows {
+			return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
 		}
-		if name == db.Name.ValueString() {
-			db.Owner = types.StringValue(owner)
-			db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			return db, nil
-		}
+		return db, err
 	}
-
-	return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
+	db.Owner = types.StringValue(owner)
+	db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return db, nil
 }
 
 func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
