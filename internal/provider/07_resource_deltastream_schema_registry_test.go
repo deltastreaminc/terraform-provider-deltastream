@@ -63,6 +63,43 @@ func TestAccDeltaSchemaRegistry(t *testing.T) {
 					return nil
 				}),
 			),
+		}, {
+			ProtoV6ProviderFactories: testAccProviders,
+			ConfigFile:               config.StaticFile("testcases/schema_registry_confluent.tf"),
+			ConfigVariables: config.Variables{
+				"region":                   config.StringVariable(creds["region"]),
+				"schema_registry_uris":     config.StringVariable(creds["schema_registry_uris"]),
+				"schema_registry_username": config.StringVariable("some_username"),
+				"schema_registry_password": config.StringVariable("some_password"),
+			},
+			Check: resource.ComposeTestCheckFunc(
+				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "owner", "sysadmin"),
+				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "type", "ConfluentCloud"),
+				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "state", "ready"),
+
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "owner", "data.deltastream_schema_registry.confluent_cloud", "owner"),
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "type", "data.deltastream_schema_registry.confluent_cloud", "type"),
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "state", "data.deltastream_schema_registry.confluent_cloud", "state"),
+
+				resource.ComposeTestCheckFunc(func(s *terraform.State) error {
+					srName := s.RootModule().Resources["deltastream_schema_registry.confluent"].Primary.Attributes["name"]
+					srNames := []string{srName}
+
+					listNames := []string{}
+					r := regexp.MustCompile("items.[0-9]+.name")
+					for k, v := range s.RootModule().Resources["data.deltastream_schema_registries.all"].Primary.Attributes {
+						if ok := r.MatchString(k); ok {
+							listNames = append(listNames, v)
+						}
+					}
+
+					if !util.ArrayContains(srNames, listNames) {
+						return fmt.Errorf("Schema registry names %v not found in list: %v", srNames, listNames)
+					}
+
+					return nil
+				}),
+			),
 		}},
 	})
 }

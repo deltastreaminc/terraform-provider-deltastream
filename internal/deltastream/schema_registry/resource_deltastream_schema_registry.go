@@ -38,9 +38,9 @@ type SchemaRegistryResource struct {
 }
 
 type ConfluentProperties struct {
-	Uris       types.String `tfsdk:"uris"`
-	Username   types.String `tfsdk:"username"`
-	Properties types.String `tfsdk:"password"`
+	Uris     types.String `tfsdk:"uris"`
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
 }
 
 type ConfluentCloudProperties struct {
