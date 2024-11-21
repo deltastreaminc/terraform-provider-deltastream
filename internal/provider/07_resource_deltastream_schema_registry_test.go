@@ -74,7 +74,7 @@ func TestAccDeltaSchemaRegistry(t *testing.T) {
 			},
 			Check: resource.ComposeTestCheckFunc(
 				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "owner", "sysadmin"),
-				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "type", "ConfluentCloud"),
+				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "type", "Confluent"),
 				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "state", "ready"),
 
 				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "owner", "data.deltastream_schema_registry.confluent_cloud", "owner"),
