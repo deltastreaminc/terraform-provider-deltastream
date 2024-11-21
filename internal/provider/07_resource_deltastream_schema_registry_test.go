@@ -77,9 +77,9 @@ func TestAccDeltaSchemaRegistry(t *testing.T) {
 				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "type", "Confluent"),
 				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "state", "ready"),
 
-				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "owner", "data.deltastream_schema_registry.confluent_cloud", "owner"),
-				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "type", "data.deltastream_schema_registry.confluent_cloud", "type"),
-				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "state", "data.deltastream_schema_registry.confluent_cloud", "state"),
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "owner", "data.deltastream_schema_registry.confluent", "owner"),
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "type", "data.deltastream_schema_registry.confluent", "type"),
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "state", "data.deltastream_schema_registry.confluent", "state"),
 
 				resource.ComposeTestCheckFunc(func(s *terraform.State) error {
 					srName := s.RootModule().Resources["deltastream_schema_registry.confluent"].Primary.Attributes["name"]
