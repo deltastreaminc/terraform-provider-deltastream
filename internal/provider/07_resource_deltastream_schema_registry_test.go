@@ -77,13 +77,22 @@ func TestAccDeltaSchemaRegistry(t *testing.T) {
 				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "type", "Confluent"),
 				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent", "state", "ready"),
 
+				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent_nopwd", "owner", "sysadmin"),
+				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent_nopwd", "type", "Confluent"),
+				resource.TestCheckResourceAttr("deltastream_schema_registry.confluent_nopwd", "state", "ready"),
+
 				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "owner", "data.deltastream_schema_registry.confluent", "owner"),
 				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "type", "data.deltastream_schema_registry.confluent", "type"),
 				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent", "state", "data.deltastream_schema_registry.confluent", "state"),
 
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent_nopwd", "owner", "data.deltastream_schema_registry.confluent_nopwd", "owner"),
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent_nopwd", "type", "data.deltastream_schema_registry.confluent_nopwd", "type"),
+				resource.TestCheckResourceAttrPair("deltastream_schema_registry.confluent_nopwd", "state", "data.deltastream_schema_registry.confluent_nopwd", "state"),
+
 				resource.ComposeTestCheckFunc(func(s *terraform.State) error {
-					srName := s.RootModule().Resources["deltastream_schema_registry.confluent"].Primary.Attributes["name"]
-					srNames := []string{srName}
+					srName1 := s.RootModule().Resources["deltastream_schema_registry.confluent"].Primary.Attributes["name"]
+					srName2 := s.RootModule().Resources["deltastream_schema_registry.confluent_nopwd"].Primary.Attributes["name"]
+					srNames := []string{srName1, srName2}
 
 					listNames := []string{}
 					r := regexp.MustCompile("items.[0-9]+.name")
