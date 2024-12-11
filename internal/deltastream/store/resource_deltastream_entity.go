@@ -256,11 +256,11 @@ func (d *EntityResource) Metadata(ctx context.Context, req resource.MetadataRequ
 }
 
 var createEntityStatement = `
-	CREATE ENTITY {{ range $index, $element := .EntityPath }}
-        {{if $index}}.{{end}}
-        {{- $element}}
-    {{ end }}
-	IN STORE {{ .StoreName }}
+	CREATE ENTITY {{ range $index, $element := .EntityPath -}}
+        {{- if $index}}.{{end -}}
+        "{{- $element}}"
+    {{- end }}
+	IN STORE "{{ .StoreName }}"
 	{{ if .Properties }}WITH ( {{ .Properties }} ){{ end }}
 	;
 `
@@ -357,9 +357,9 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 const dropEntityStatement = `DROP ENTITY 	
 	{{ range $index, $element := .EntityPath }}
 		{{ if $index }}.{{ end }}
-		{{- $element }}
+		"{{- $element }}"
 	{{ end }}
-	IN STORE {{ .StoreName }};
+	IN STORE "{{ .StoreName }}";
 `
 
 func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
