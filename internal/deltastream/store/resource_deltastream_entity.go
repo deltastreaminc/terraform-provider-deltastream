@@ -261,7 +261,7 @@ var createEntityStatement = `
         "{{- $element}}"
     {{- end }}
 	IN STORE "{{ .StoreName }}"
-	{{ if .Properties }}WITH ( {{ .Properties }} ){{ end }}
+	{{ if .Properties }} WITH ( {{ .Properties }} ){{ end }}
 	;
 `
 
@@ -437,7 +437,7 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		return
 	}
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`DESCRIBE ENTITY %s IN STORE %s;`, strings.Join(entityPath, "."), entity.Store.ValueString()))
+	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`DESCRIBE ENTITY %s IN STORE "%s";`, strings.Join(entityPath, "."), entity.Store.ValueString()))
 	if err != nil {
 		diags.AddError("failed to describe entity", err.Error())
 		return
