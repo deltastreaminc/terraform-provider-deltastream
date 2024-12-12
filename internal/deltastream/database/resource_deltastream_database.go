@@ -142,28 +142,22 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 func (d *DatabaseResource) updateComputed(ctx context.Context, conn *sql.Conn, db DatabaseResourceData) (DatabaseResourceData, error) {
-	rows, err := conn.QueryContext(ctx, `LIST DATABASES;`)
-	if err != nil {
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT "owner", created_at FROM deltastream.sys."databases" WHERE name = '%s';`, db.Name.ValueString()))
+	if err := row.Err(); err != nil {
 		return db, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var discard any
-		var name string
-		var owner string
-		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			return db, err
+	var owner string
+	var createdAt time.Time
+	if err := row.Scan(&owner, &createdAt); err != nil {
+		if err == sql.ErrNoRows {
+			return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
 		}
-		if name == db.Name.ValueString() {
-			db.Owner = types.StringValue(owner)
-			db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			return db, nil
-		}
+		return db, err
 	}
-
-	return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
+	db.Owner = types.StringValue(owner)
+	db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return db, nil
 }
 
 func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -186,12 +180,17 @@ func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, database.Name.ValueString())); err != nil {
-		var sqlErr gods.ErrSQLError
-		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
-			return
+	if err = retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
+		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, database.Name.ValueString())); err != nil {
+			var sqlErr gods.ErrSQLError
+			if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
+				return retry.RetryableError(err)
+			}
 		}
+		return nil
+	}); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
+		return
 	}
 	tflog.Info(ctx, "Database deleted", map[string]any{"name": database.Name.ValueString()})
 }

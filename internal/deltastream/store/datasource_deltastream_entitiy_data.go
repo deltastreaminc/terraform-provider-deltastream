@@ -91,12 +91,12 @@ func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.Schema
 
 const printEntityStatement = `PRINT ENTITY
 	{{ if ne (len .EntityPath) 0 }}
-	{{- range $index, $element := .EntityPath }}
-        {{- if $index }}.{{ end }}
-    	{{- $element }}
+	{{- range $index, $element := .EntityPath -}}
+        {{- if $index }}.{{ end -}}
+    	"{{- $element }}"
     {{- end }}
 	{{- end }}
-	IN STORE {{ .StoreName }}
+	IN STORE "{{ .StoreName }}"
 	{{ if .FromBeginning }}WITH ( 'from_beginning' ){{ end }};
 `
 

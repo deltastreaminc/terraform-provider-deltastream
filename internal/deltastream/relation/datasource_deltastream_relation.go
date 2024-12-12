@@ -5,6 +5,7 @@ package relation
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -116,45 +117,31 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST RELATIONS IN SCHEMA "%s"."%s";`, rel.Database.ValueString(), rel.Schema.ValueString()))
-	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)
-		return
-	}
-	defer rows.Close()
-
-	found := false
-	for rows.Next() {
-		var (
-			name           string
-			kind           string
-			owner          string
-			state          string
-			propertiesJSON string
-			createdAt      time.Time
-			updatedAt      time.Time
-		)
-
-		if err := rows.Scan(&name, &kind, &owner, &state, &propertiesJSON, &createdAt, &updatedAt); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read relation", err)
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE database_name = '%s' AND schema_name = '%s' AND name = '%s';`, rel.Database.ValueString(), rel.Schema.ValueString(), rel.Name.ValueString()))
+	if err := row.Err(); err != nil {
+		if err == sql.ErrNoRows {
+			resp.Diagnostics.AddError("error loading relation", "relation not found")
 			return
 		}
-		if name == rel.Name.ValueString() {
-			found = true
-			rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
-			rel.Owner = types.StringValue(owner)
-			rel.Type = types.StringValue(kind)
-			rel.State = types.StringValue(state)
-			rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			break
-		}
-	}
-
-	if !found {
-		resp.Diagnostics.AddError("error loading relation", "relation not found")
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read relation", err)
 		return
 	}
+
+	var (
+		kind      string
+		owner     string
+		state     string
+		createdAt time.Time
+		updatedAt time.Time
+	)
+	if err := row.Scan(&kind, &owner, &state, &createdAt, &updatedAt); err != nil {
+	}
+	rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), rel.Name.ValueString()))
+	rel.Owner = types.StringValue(owner)
+	rel.Type = types.StringValue(kind)
+	rel.State = types.StringValue(state)
+	rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &rel)...)
 }

@@ -120,24 +120,23 @@ func (d *StoresDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
+	rows, err := conn.QueryContext(ctx, `SELECT "name", "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores";`)
 	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list store", err)
-		return
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
 	}
 	defer rows.Close()
 
+	var name string
+	var accessRegion string
+	var kind string
+	var state string
+	var owner string
+	var createdAt time.Time
+	var updatedAt time.Time
+
 	items := []StoresDatasourceDataItem{}
 	for rows.Next() {
-		var discard any
-		var name string
-		var accessRegion string
-		var kind string
-		var state string
-		var owner string
-		var createdAt time.Time
-		var updatedAt time.Time
-		if err := rows.Scan(&name, &kind, &accessRegion, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&name, &accessRegion, &kind, &state, &owner, &createdAt, &updatedAt); err != nil {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
 			return
 		}

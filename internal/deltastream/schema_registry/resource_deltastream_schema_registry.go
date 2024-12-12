@@ -38,9 +38,9 @@ type SchemaRegistryResource struct {
 }
 
 type ConfluentProperties struct {
-	Uris       types.String `tfsdk:"uris"`
-	Username   types.String `tfsdk:"username"`
-	Properties types.String `tfsdk:"password"`
+	Uris     types.String `tfsdk:"uris"`
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
 }
 
 type ConfluentCloudProperties struct {
@@ -163,14 +163,16 @@ func (d *SchemaRegistryResource) Metadata(ctx context.Context, req resource.Meta
 }
 
 const createStatement = `CREATE SCHEMA_REGISTRY "{{.Name}}" WITH(
-	{{- if eq .Type "CONFLUENT" }}
-		'type' = CONFLUENT, 'access_region' = "{{.AccessRegion}}", 'uris' = '{{.Confluent.Uris.ValueString}}',
-		'confluent.username' = '{{.Confluent.Username.ValueString}}', 'confluent.password' = '{{.Confluent.Password.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "CONFLUENT_CLOUD" }}
+	{{- if eq .Type "CONFLUENT" -}}
+		'type' = CONFLUENT, 'access_region' = "{{.AccessRegion}}", 'uris' = '{{.Confluent.Uris.ValueString}}'
+		{{- if and (not .Confluent.Username.IsNull) (not .Confluent.Username.IsUnknown) -}}
+		,'confluent.username' = '{{.Confluent.Username.ValueString}}', 'confluent.password' = '{{.Confluent.Password.ValueString}}'
+		{{- end -}}
+	{{- end -}}
+	{{- if eq .Type "CONFLUENT_CLOUD" -}}
 		'type' = CONFLUENT_CLOUD, 'access_region' = "{{.AccessRegion}}", 'uris' = '{{.ConfluentCloud.Uris.ValueString}}',
 		'confluent_cloud.key' = '{{.ConfluentCloud.Key.ValueString}}', 'confluent_cloud.secret' = '{{.ConfluentCloud.Secret.ValueString}}'
-	{{- end }}
+	{{- end -}}
 );`
 
 // Create implements resource.Resource.

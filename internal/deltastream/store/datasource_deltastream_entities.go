@@ -79,12 +79,12 @@ func (d *EntitiesDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 
 const listEntitiesStatement = `LIST ENTITIES 
 	{{ if ne (len .ParentPath) 0 }}
-	IN {{ range $index, $element := .ParentPath }}
-        {{if $index}}.{{end}}
-        {{$element}}
-    {{ end }}
+	IN {{ range $index, $element := .ParentPath -}}
+        {{- if $index}}.{{end -}}
+        "{{$element}}"
+    {{- end }}
 	{{ end }}
-	IN STORE {{ .StoreName }};
+	IN STORE "{{ .StoreName }}";
 `
 
 func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {

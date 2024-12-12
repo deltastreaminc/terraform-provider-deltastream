@@ -256,12 +256,12 @@ func (d *EntityResource) Metadata(ctx context.Context, req resource.MetadataRequ
 }
 
 var createEntityStatement = `
-	CREATE ENTITY {{ range $index, $element := .EntityPath }}
-        {{if $index}}.{{end}}
-        {{- $element}}
-    {{ end }}
-	IN STORE {{ .StoreName }}
-	{{ if .Properties }}WITH ( {{ .Properties }} ){{ end }}
+	CREATE ENTITY {{ range $index, $element := .EntityPath -}}
+        {{- if $index}}.{{end -}}
+        "{{- $element}}"
+    {{- end }}
+	IN STORE "{{ .StoreName }}"
+	{{ if .Properties }} WITH ( {{ .Properties }} ){{ end }}
 	;
 `
 
@@ -357,9 +357,9 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 const dropEntityStatement = `DROP ENTITY 	
 	{{ range $index, $element := .EntityPath }}
 		{{ if $index }}.{{ end }}
-		{{- $element }}
+		"{{- $element }}"
 	{{ end }}
-	IN STORE {{ .StoreName }};
+	IN STORE "{{ .StoreName }}";
 `
 
 func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -437,7 +437,7 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		return
 	}
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`DESCRIBE ENTITY %s IN STORE %s;`, strings.Join(entityPath, "."), entity.Store.ValueString()))
+	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`DESCRIBE ENTITY %s IN STORE "%s";`, strings.Join(entityPath, "."), entity.Store.ValueString()))
 	if err != nil {
 		diags.AddError("failed to describe entity", err.Error())
 		return
@@ -614,29 +614,21 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 }
 
 func getStoreType(ctx context.Context, conn *sql.Conn, storeName string) (string, error) {
-	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
-	if err != nil {
-		return "", fmt.Errorf("failed to load store: %w", err)
-	}
-	defer rows.Close()
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT type FROM deltastream.sys."stores" WHERE name = '%s';`, storeName))
+	if row.Err() != nil {
+		if row.Err() == sql.ErrNoRows {
+			return "", fmt.Errorf("store not found: %s", storeName)
+		}
 
-	var storeType string
-	for rows.Next() {
-		var discard any
-		var name string
-		var kind string
-		if err := rows.Scan(&name, &kind, &discard, &discard, &discard, &discard, &discard, &discard); err != nil {
-			return "", fmt.Errorf("failed to read store: %w", err)
-		}
-		if name == storeName {
-			storeType = kind
-			break
-		}
+		return "", fmt.Errorf("failed to read store: %w", row.Err())
 	}
-	if storeType == "" {
-		return "", fmt.Errorf("store not found: %s", storeName)
+
+	var kind string
+	if err := row.Scan(&kind); err != nil {
+		return "", fmt.Errorf("failed to read store: %w", row.Err())
 	}
-	return storeType, nil
+
+	return kind, nil
 }
 
 func rowsToMap(rows *sql.Rows) (map[string]string, error) {

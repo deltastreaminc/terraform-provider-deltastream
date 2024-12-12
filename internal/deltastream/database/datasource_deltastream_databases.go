@@ -80,7 +80,7 @@ func (d *DatabasesDataSource) Read(ctx context.Context, req datasource.ReadReque
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST DATABASES;`)
+	rows, err := conn.QueryContext(ctx, `SELECT name, "owner", created_at FROM deltastream.sys."databases";`)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list databases", err)
 		return
@@ -89,11 +89,10 @@ func (d *DatabasesDataSource) Read(ctx context.Context, req datasource.ReadReque
 
 	items := []DatabaseDatasourceData{}
 	for rows.Next() {
-		var discard any
 		var name string
 		var owner string
 		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
+		if err := rows.Scan(&name, &owner, &createdAt); err != nil {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read database", err)
 			return
 		}
