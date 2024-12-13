@@ -156,7 +156,7 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 		}
 
 		rel.Name = types.StringValue(name)
-		rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
+		rel.FQN = types.StringValue(fmt.Sprintf(`%q.%q.%q`, rel.Database.ValueString(), rel.Schema.ValueString(), name))
 		rel.Owner = types.StringValue(owner)
 		rel.Type = types.StringValue(kind)
 		rel.State = types.StringValue(state)

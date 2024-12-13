@@ -430,6 +430,11 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 	if diags.HasError() {
 		return
 	}
+	tmpEp := []string{}
+	for _, e := range entityPath {
+		tmpEp = append(tmpEp, fmt.Sprintf(`%q`, e))
+	}
+	entityPath = tmpEp
 
 	storeType, err := getStoreType(ctx, conn, entity.Store.ValueString())
 	if err != nil {
@@ -437,7 +442,7 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		return
 	}
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`DESCRIBE ENTITY %s IN STORE "%s";`, strings.Join(entityPath, "."), entity.Store.ValueString()))
+	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`DESCRIBE ENTITY %s IN STORE "%s";`, strings.Join(entityPath, `.`), entity.Store.ValueString()))
 	if err != nil {
 		diags.AddError("failed to describe entity", err.Error())
 		return

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -199,29 +198,30 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	if d.cfg.Organization+"."+strings.TrimSpace(query.SinkRelation.ValueString()) != statementPlan.Sink.Fqn {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("sink relation mismatch %s != %s", d.cfg.Organization+"."+query.SinkRelation.ValueString(), statementPlan.Sink.Fqn))
-		return
-	}
+	// todo: fix after backend sends quoted FQN
+	// if d.cfg.Organization+"."+strings.TrimSpace(query.SinkRelation.ValueString()) != statementPlan.Sink.Fqn {
+	// 	resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("sink relation mismatch %s != %s", d.cfg.Organization+"."+query.SinkRelation.ValueString(), statementPlan.Sink.Fqn))
+	// 	return
+	// }
 
-	var sourceRelations []string
-	resp.Diagnostics.Append(query.SourceRelations.ElementsAs(ctx, &sourceRelations, false)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	for _, source := range statementPlan.Sources {
-		found := false
-		for _, sourceRelation := range sourceRelations {
-			if d.cfg.Organization+"."+strings.TrimSpace(sourceRelation) == source.Fqn {
-				found = true
-				break
-			}
-		}
-		if !found {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("query uses source relation %s but it is not specified as a source on the resource", source.Fqn))
-			return
-		}
-	}
+	// var sourceRelations []string
+	// resp.Diagnostics.Append(query.SourceRelations.ElementsAs(ctx, &sourceRelations, false)...)
+	// if resp.Diagnostics.HasError() {
+	// 	return
+	// }
+	// for _, source := range statementPlan.Sources {
+	// 	found := false
+	// 	for _, sourceRelation := range sourceRelations {
+	// 		if d.cfg.Organization+"."+strings.TrimSpace(sourceRelation) == source.Fqn {
+	// 			found = true
+	// 			break
+	// 		}
+	// 	}
+	// 	if !found {
+	// 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("query uses source relation %s but it is not specified as a source on the resource", source.Fqn))
+	// 		return
+	// 	}
+	// }
 
 	artifactDDL := artifactDDL{}
 	row = conn.QueryRowContext(ctx, query.Sql.ValueString())
