@@ -4,13 +4,11 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
-	"text/template"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -128,7 +126,6 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"store": schema.StringAttribute{
 				Description: "Store name",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"entity_path": schema.ListAttribute{
 				Description: "Entity path",
@@ -255,16 +252,6 @@ func (d *EntityResource) Metadata(ctx context.Context, req resource.MetadataRequ
 	resp.TypeName = req.ProviderTypeName + "_entity"
 }
 
-var createEntityStatement = `
-	CREATE ENTITY {{ range $index, $element := .EntityPath -}}
-        {{- if $index}}.{{end -}}
-        "{{- $element}}"
-    {{- end }}
-	IN STORE "{{ .StoreName }}"
-	{{ if .Properties }} WITH ( {{ .Properties }} ){{ end }}
-	;
-`
-
 // Create implements resource.Resource.
 func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var entity EntityResourceData
@@ -333,14 +320,15 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 	}
 
-	b := bytes.NewBuffer(nil)
-	template.Must(template.New("").Parse(createEntityStatement)).Execute(b, map[string]any{
+	dsql, err := util.ExecTemplate(createEntityTmpl, map[string]any{
 		"StoreName":  entity.Store.ValueString(),
 		"EntityPath": entityPath,
 		"Properties": strings.Join(properties, ", "),
 	})
-	sql := b.String()
-	if _, err := conn.ExecContext(ctx, sql); err != nil {
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create entity", err)
 		return
 	}
@@ -353,14 +341,6 @@ func (d *EntityResource) Create(ctx context.Context, req resource.CreateRequest,
 	tflog.Info(ctx, "Entity created", map[string]any{"store": entity.Store.String(), "name": entity.EntityPath.String()})
 	resp.Diagnostics.Append(resp.State.Set(ctx, entity)...)
 }
-
-const dropEntityStatement = `DROP ENTITY 	
-	{{ range $index, $element := .EntityPath }}
-		{{ if $index }}.{{ end }}
-		"{{- $element }}"
-	{{ end }}
-	IN STORE "{{ .StoreName }}";
-`
 
 func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var entity EntityResourceData
@@ -384,12 +364,14 @@ func (d *EntityResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	b := bytes.NewBuffer(nil)
-	template.Must(template.New("").Parse(dropEntityStatement)).Execute(b, map[string]any{
+	dsql, err := util.ExecTemplate(dropEntityTmpl, map[string]any{
 		"StoreName":  entity.Store.ValueString(),
 		"EntityPath": entityPath,
 	})
-	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
 		return
 	}
@@ -437,7 +419,14 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		return
 	}
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`DESCRIBE ENTITY %s IN STORE "%s";`, strings.Join(entityPath, "."), entity.Store.ValueString()))
+	dsql, err := util.ExecTemplate(describeEntityTmpl, map[string]any{
+		"StoreName":  entity.Store.ValueString(),
+		"EntityPath": entityPath,
+	})
+	if err != nil {
+		diags = util.LogError(ctx, diags, "failed to generate SQL", err)
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		diags.AddError("failed to describe entity", err.Error())
 		return
@@ -614,7 +603,13 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 }
 
 func getStoreType(ctx context.Context, conn *sql.Conn, storeName string) (string, error) {
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT type FROM deltastream.sys."stores" WHERE name = '%s';`, storeName))
+	dsql, err := util.ExecTemplate(lookupStoreTypeTmpl, map[string]any{
+		"Name": storeName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to generate SQL: %w", err)
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	if row.Err() != nil {
 		if row.Err() == sql.ErrNoRows {
 			return "", fmt.Errorf("store not found: %s", storeName)

@@ -58,33 +58,39 @@ func (d *RelationResource) Schema(ctx context.Context, req resource.SchemaReques
 			"database": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"schema": schema.StringAttribute{
 				Description: "Name of the Schema",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"store": schema.StringAttribute{
 				Description: "Name of the Store",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"sql": schema.StringAttribute{
 				Description: "SQL statement to create the relation",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the relation",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
-
 			"name": schema.StringAttribute{
 				Description: "Name of the Relation",
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -187,7 +193,14 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	row := conn.QueryRowContext(ctx, "DESCRIBE "+relation.Sql.ValueString())
+	dsql, err := util.ExecTemplate(describeRelationTmpl, map[string]any{
+		"SQL": relation.Sql.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	var kind string
 	var descJson string
 	if err := row.Scan(&kind, &descJson); err != nil {
@@ -233,7 +246,6 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 	relation.FQN = types.StringValue(artifactDDL.Name)
-
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
 		relation, err = d.updateComputed(ctx, conn, relation)
 		if err != nil {
@@ -246,8 +258,15 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 
 		return nil
 	}); err != nil {
-		if _, derr := conn.ExecContext(ctx, fmt.Sprintf(`DROP RELATION %s;`, relation.FQN.ValueString())); derr != nil {
-			tflog.Error(ctx, "failed to clean up schema", map[string]any{
+		dsql, derr := util.ExecTemplate(describeRelationTmpl, map[string]any{
+			"FQN": relation.FQN.ValueString(),
+		})
+		if derr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", derr)
+			return
+		}
+		if _, derr := conn.ExecContext(ctx, dsql); derr != nil {
+			tflog.Error(ctx, "failed to clean up relation", map[string]any{
 				"name":  relation.FQN.ValueString(),
 				"error": derr.Error(),
 			})
@@ -258,10 +277,16 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(resp.State.Set(ctx, relation)...)
 }
 
-func (d *RelationResource) updateComputed(ctx context.Context, conn *sql.Conn, rel RelationResourceData) (RelationResourceData, error) {
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT name, relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE database_name || '.' || schema_name || '.' || name = '%s';`, rel.FQN.ValueString()))
+func (d *RelationResource) updateComputed(ctx context.Context, conn *sql.Conn, relation RelationResourceData) (RelationResourceData, error) {
+	dsql, err := util.ExecTemplate(lookupRelationByFQNTmpl, map[string]any{
+		"FQN": relation.FQN.ValueString(),
+	})
+	if err != nil {
+		return relation, fmt.Errorf("failed to generate SQL: %w", err)
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	if err := row.Err(); err != nil {
-		return rel, err
+		return relation, err
 	}
 
 	var (
@@ -273,15 +298,15 @@ func (d *RelationResource) updateComputed(ctx context.Context, conn *sql.Conn, r
 		updatedAt time.Time
 	)
 	if err := row.Scan(&name, &kind, &owner, &state, &createdAt, &updatedAt); err != nil {
-		return rel, err
+		return relation, err
 	}
-	rel.Name = types.StringValue(name)
-	rel.Owner = types.StringValue(owner)
-	rel.Type = types.StringValue(kind)
-	rel.State = types.StringValue(state)
-	rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-	rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-	return rel, nil
+	relation.Name = types.StringValue(name)
+	relation.Owner = types.StringValue(owner)
+	relation.Type = types.StringValue(kind)
+	relation.State = types.StringValue(state)
+	relation.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	relation.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return relation, nil
 }
 
 func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -304,7 +329,14 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP RELATION %s;`, relation.FQN.ValueString())); err != nil {
+	dsql, err := util.ExecTemplate(dropRelationTmpl, map[string]any{
+		"FQN": relation.FQN.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidRelation {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to drop relation", err)
@@ -313,7 +345,13 @@ func (d *RelationResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
-		row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT 1 FROM deltastream.sys."relations" WHERE database_name = '%s' AND schema_name = '%s' AND name = '%s';`, relation.Database.ValueString(), relation.Schema.ValueString(), relation.Name.ValueString()))
+		dsql, err := util.ExecTemplate(checkRelationExistsByFQNTmpl, map[string]any{
+			"FQN": relation.FQN.ValueString(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to generate SQL: %w", err)
+		}
+		row := conn.QueryRowContext(ctx, dsql)
 		if err := row.Err(); err != nil {
 			return err
 		}

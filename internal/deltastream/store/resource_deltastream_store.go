@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -80,9 +79,9 @@ type ConfleuntKafkaProperties struct {
 
 type KinesisProperties struct {
 	Uris            types.String `tfsdk:"uris"`
-	SchemaRegistry  types.String `tfsdk:"schema_registry_name"`
 	AccessKeyId     types.String `tfsdk:"access_key_id"`
 	SecretAccessKey types.String `tfsdk:"secret_access_key"`
+	AwsAccountId    types.String `tfsdk:"aws_account_id"`
 }
 
 type SnowflakeProperties struct {
@@ -135,12 +134,10 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 			"name": schema.StringAttribute{
 				Description: "Name of the Store",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"access_region": schema.StringAttribute{
 				Description: "Specifies the region of the Store. In order to improve latency and reduce data transfer costs, the region should be the same cloud and region that the physical Store is running in.",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"type": schema.StringAttribute{
 				Description: "Type of the Store",
@@ -211,10 +208,6 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 						Description: "List of host:port URIs to connect to the store",
 						Required:    true,
 					},
-					"schema_registry_name": schema.StringAttribute{
-						Description: "Name of the schema registry",
-						Optional:    true,
-					},
 					"sasl_hash_function": schema.StringAttribute{
 						Description: "SASL hash function to use when authenticating with Confluent Kafka brokers",
 						Validators:  []validator.String{stringvalidator.OneOf("PLAIN", "SHA256", "SHA512")},
@@ -241,10 +234,6 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 						Description: "List of host:port URIs to connect to the store",
 						Required:    true,
 					},
-					"schema_registry_name": schema.StringAttribute{
-						Description: "Name of the schema registry",
-						Optional:    true,
-					},
 					"access_key_id": schema.StringAttribute{
 						Description: "AWS IAM access key to use when authenticating with an Amazon Kinesis service",
 						Optional:    true,
@@ -253,6 +242,11 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 					"secret_access_key": schema.StringAttribute{
 						Description: "AWS IAM secret access key to use when authenticating with an Amazon Kinesis service",
 						Optional:    true,
+						Sensitive:   true,
+					},
+					"aws_account_id": schema.StringAttribute{
+						Description: "AWS account ID to use when authenticating with an Amazon Kinesis service",
+						Required:    true,
 						Sensitive:   true,
 					},
 				},
@@ -363,7 +357,6 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Description: "Owning role of the Store",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"state": schema.StringAttribute{
 				Description: "State of the Store",
@@ -399,53 +392,6 @@ func (d *StoreResource) Configure(ctx context.Context, req resource.ConfigureReq
 func (d *StoreResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_store"
 }
-
-const createStatement = `CREATE STORE "{{.Name}}" WITH(
-	{{- if eq .Type "KAFKA" }}
-		'type' = KAFKA, 'access_region' = "{{.AccessRegion}}", 'kafka.sasl.hash_function' = {{.Kafka.SaslHashFunc.ValueString}},
-		{{- if eq .Kafka.SaslHashFunc.ValueString "AWS_MSK_IAM" }}
-			'kafka.msk.iam_role_arn' = '{{.Kafka.MskIamRoleArn.ValueString}}', 'kafka.msk.aws_region' = '{{.Kafka.MskAwsRegion.ValueString}}',
-		{{- else if ne .Kafka.SaslHashFunc.ValueString "NONE" }}
-			'kafka.sasl.username' = '{{.Kafka.SaslUsername.ValueString}}', 'kafka.sasl.password' = '{{.Kafka.SaslPassword.ValueString}}',
-		{{- end }}
-		{{- if not (or .Kafka.SchemaRegistry.IsNull .Kafka.SchemaRegistry.IsUnknown) }}
-			'schema_registry.name' = "{{.Kafka.SchemaRegistry.ValueString}}",
-		{{- end }}
-		'tls.disabled' = {{ if .Kafka.TlsDisabled.ValueBool }}TRUE{{ else }}FALSE{{ end }},
-		'tls.verify_server_hostname' = {{ if .Kafka.TlsVerifyServerHostname.ValueBool }}TRUE{{ else }}FALSE{{ end }},
-		{{- if not (or .Kafka.TlsCaCertFile.IsNull .Kafka.TlsCaCertFile.IsUnknown) }}
-			'tls.ca_cert_file' = 'tls.ca_cert_file.pem',
-		{{- end }}
-		'uris' = '{{.Kafka.Uris.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "CONFLUENT_KAFKA" }}
-		'type' = CONFLUENT_KAFKA, 'access_region' = "{{.AccessRegion}}", 'kafka.sasl.hash_function' = {{.ConfluentKafka.SaslHashFunc.ValueString}}, 'kafka.sasl.username' = '{{.ConfluentKafka.SaslUsername.ValueString}}', 'kafka.sasl.password' = '{{.ConfluentKafka.SaslPassword.ValueString}}',
-		{{- if not (or .ConfluentKafka.SchemaRegistry.IsNull .ConfluentKafka.SchemaRegistry.IsUnknown) }}
-			'schema_registry.name' = "{{.ConfluentKafka.SchemaRegistry.ValueString}}",
-		{{- end }}
-		'tls.verify_server_hostname' = TRUE,
-		'uris' = '{{.ConfluentKafka.Uris.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "KINESIS" }}
-		'type' = KINESIS, 'access_region' = "{{.AccessRegion}}",
-		{{- if and .Kinesis.AccessKeyId .Kinesis.SecretAccessKey }}
-			'kinesis.access_key_id' = '{{.Kinesis.AccessKeyId.ValueString}}', 'kinesis.secret_access_key' = '{{.Kinesis.SecretAccessKey.ValueString}}',
-		{{- end }}
-		{{- if not (or .Kinesis.SchemaRegistry.IsNull .Kinesis.SchemaRegistry.IsUnknown) }}
-			'schema_registry.name' = "{{.Kinesis.SchemaRegistry.ValueString}}",
-		{{- end }}
-		'uris' = '{{.Kinesis.Uris.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "SNOWFLAKE" }}
-		'type' = SNOWFLAKE, 'access_region' = "{{.AccessRegion}}", 'snowflake.account_id' = '{{.Snowflake.AccountId.ValueString}}', 'snowflake.cloud.region' = '{{.Snowflake.CloudRegion.ValueString}}', 'snowflake.warehouse_name' = '{{.Snowflake.WarehouseName.ValueString}}', 'snowflake.role_name' = '{{.Snowflake.RoleName.ValueString}}', 'snowflake.username' = '{{.Snowflake.Username.ValueString}}', 'snowflake.client.key_file' = 'snowflake.client.key_file.pem', 'snowflake.client.key_passphrase' = '{{.Snowflake.ClientKeyPassphrase.ValueString}}', 'uris' = '{{.Snowflake.Uris.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "DATABRICKS" }}
-		'type' = DATABRICKS, 'access_region' = "{{.AccessRegion}}", 'databricks.app_token' = '{{.Databricks.AppToken.ValueString}}', 'databricks.warehouse_id' = '{{.Databricks.WarehouseId.ValueString}}', 'databricks.warehouse_port' = 443, 'aws.access_key_id' = '{{.Databricks.AccessKeyId.ValueString}}', 'aws.secret_access_key' = '{{.Databricks.SecretAccessKey.ValueString}}', 'databricks.cloud.s3.bucket' = '{{.Databricks.CloudS3Bucket.ValueString}}', 'databricks.cloud.region' = '{{.Databricks.CloudRegion.ValueString}}', 'uris' = '{{.Databricks.Uris.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "POSTGRESQL" }}
-		'type' = POSTGRESQL, 'access_region' = "{{.AccessRegion}}", 'postgres.username' = '{{.Postgres.Username.ValueString}}', 'postgres.password' = '{{.Postgres.Password.ValueString}}', 'uris' = '{{.Postgres.Uris.ValueString}}'
-	{{- end }}
-);`
 
 // Create implements resource.Resource.
 func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -514,8 +460,7 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	b := bytes.NewBuffer(nil)
-	if err := template.Must(template.New("").Parse(createStatement)).Execute(b, map[string]any{
+	dsql, err := util.ExecTemplate(createStoreTmpl, map[string]any{
 		"Name":           store.Name.ValueString(),
 		"Type":           stype,
 		"AccessRegion":   store.AccessRegion.ValueString(),
@@ -525,11 +470,11 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		"Snowflake":      snowflakeProperties,
 		"Databricks":     databricksProperties,
 		"Postgres":       postgresProperties,
-	}); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to render store sql", err)
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
 		return
 	}
-	dsql := b.String()
 	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create store", err)
 		return
@@ -546,7 +491,14 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 		return nil
 	}); err != nil {
-		if _, derr := conn.ExecContext(ctx, `DROP STORE "`+store.Name.ValueString()+`";`); derr != nil {
+		dsql, derr := util.ExecTemplate(dropStoreTmpl, map[string]any{
+			"Name": store.Name.ValueString(),
+		})
+		if derr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", derr)
+			return
+		}
+		if _, derr := conn.ExecContext(ctx, dsql); derr != nil {
 			var sqlErr gods.ErrSQLError
 			if !(errors.As(derr, &sqlErr) && sqlErr.SQLCode != gods.SqlStateInvalidParameter) {
 				tflog.Error(ctx, "failed to clean up store", map[string]any{
@@ -564,7 +516,13 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 }
 
 func (d *StoreResource) updateComputed(ctx context.Context, conn *sql.Conn, store StoreResourceData) (StoreResourceData, error) {
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores" WHERE name = '%s';`, store.Name.ValueString()))
+	dsql, err := util.ExecTemplate(lookupStoreTmpl, map[string]any{
+		"Name": store.Name.ValueString(),
+	})
+	if err != nil {
+		return store, fmt.Errorf("failed to generate SQL: %w", err)
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	if row.Err() != nil {
 		if errors.Is(row.Err(), sql.ErrNoRows) {
 			return store, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidStore}
@@ -615,7 +573,13 @@ func (d *StoreResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	defer conn.Close()
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
-		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP STORE "%s";`, store.Name.ValueString())); err != nil {
+		dsql, err := util.ExecTemplate(dropStoreTmpl, map[string]any{
+			"Name": store.Name.ValueString(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to generate SQL: %w", err)
+		}
+		if _, err := conn.ExecContext(ctx, dsql); err != nil {
 			var sqlErr gods.ErrSQLError
 			if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidStore {
 				return retry.RetryableError(err)

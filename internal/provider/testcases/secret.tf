@@ -17,7 +17,7 @@ resource "random_id" "id2" {
 }
 
 resource "deltastream_secret" "secret1" {
-  name          = "secret_${random_id.id1.hex}"
+  name          = "Secret_${random_id.id1.hex}-东西"
   type          = "generic_string"
   description   = "secret description"
   access_region = data.deltastream_region.region.name

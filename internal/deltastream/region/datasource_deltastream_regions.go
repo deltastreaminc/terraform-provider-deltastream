@@ -79,7 +79,12 @@ func (d *RegionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST REGIONS;`)
+	dsql, err := util.ExecTemplate(lookupRegionsTmpl, map[string]any{})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list region", err)
 		return
@@ -96,7 +101,7 @@ func (d *RegionsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			return
 		}
 		items = append(items, RegionDataSourceData{
-			Name:   types.StringValue(name),
+			Name:   types.StringValue(util.ParseIdentifier(name)),
 			Cloud:  types.StringValue(cloud),
 			Region: types.StringValue(region),
 		})

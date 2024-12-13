@@ -80,7 +80,12 @@ func (d *SecretsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST SECRETS;`)
+	dsql, err := util.ExecTemplate(listSecretTmpl, map[string]any{})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list secrets", err)
 		return
@@ -91,7 +96,7 @@ func (d *SecretsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	for rows.Next() {
 		var name string
 		var stype string
-		var description string
+		var description *string
 		var region string
 		var owner string
 		var status string
@@ -104,7 +109,7 @@ func (d *SecretsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		items = append(items, SecretDatasourceData{
 			Name:         types.StringValue(name),
 			Type:         types.StringValue(stype),
-			Description:  types.StringValue(description),
+			Description:  types.StringPointerValue(description),
 			AccessRegion: types.StringValue(region),
 			Owner:        types.StringValue(owner),
 			Status:       types.StringValue(status),

@@ -131,10 +131,6 @@ Required:
 - `sasl_username` (String, Sensitive) Username to use when authenticating with Apache Kafka brokers
 - `uris` (String) List of host:port URIs to connect to the store
 
-Optional:
-
-- `schema_registry_name` (String) Name of the schema registry
-
 
 <a id="nestedatt--databricks"></a>
 ### Nested Schema for `databricks`
@@ -175,12 +171,12 @@ Optional:
 
 Required:
 
+- `aws_account_id` (String, Sensitive) AWS account ID to use when authenticating with an Amazon Kinesis service
 - `uris` (String) List of host:port URIs to connect to the store
 
 Optional:
 
 - `access_key_id` (String, Sensitive) AWS IAM access key to use when authenticating with an Amazon Kinesis service
-- `schema_registry_name` (String) Name of the schema registry
 - `secret_access_key` (String, Sensitive) AWS IAM secret access key to use when authenticating with an Amazon Kinesis service
 
 

@@ -5,6 +5,7 @@ package schema
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -54,18 +55,15 @@ func getSchemaSchema() schema.Schema {
 			"database": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the Schema",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the Schema",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Creation date of the Schema",
@@ -94,35 +92,33 @@ func (d *SchemaDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST SCHEMAS IN DATABASE "%s";`, schema.Database.ValueString()))
+	dsql, err := util.ExecTemplate(lookupSchemaTmpl, map[string]any{
+		"DatabaseName": schema.Database.ValueString(),
+		"Name":         schema.Name.ValueString(),
+	})
 	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
 		return
 	}
-	defer rows.Close()
+	row := conn.QueryRowContext(ctx, dsql)
+	if err := row.Err(); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to lookup schema", err)
+		return
+	}
 
-	found := false
-	for rows.Next() {
-		var discard any
-		var name string
-		var owner string
-		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read schema", err)
+	var owner string
+	var createdAt time.Time
+	if err := row.Scan(&owner, &createdAt); err != nil {
+		if err == sql.ErrNoRows {
+			resp.Diagnostics.AddError("error loading schema", "schema not found")
 			return
 		}
-		if name == schema.Name.ValueString() {
-			found = true
-			schema.Owner = types.StringValue(owner)
-			schema.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			break
-		}
-	}
-
-	if !found {
-		resp.Diagnostics.AddError("error loading schema", "schema not found")
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read schema", err)
 		return
 	}
+
+	schema.Owner = types.StringValue(owner)
+	schema.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &schema)...)
 }

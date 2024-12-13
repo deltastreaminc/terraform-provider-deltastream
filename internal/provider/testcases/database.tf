@@ -9,7 +9,7 @@ resource "random_id" "id2" {
 }
 
 resource "deltastream_database" "db1" {
-  name          = "database_${random_id.id1.hex}"
+  name          = "Database_${random_id.id1.hex}-东西"
 }
 
 resource "deltastream_database" "db2" {

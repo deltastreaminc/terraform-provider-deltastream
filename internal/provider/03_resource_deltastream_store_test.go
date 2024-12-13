@@ -148,11 +148,12 @@ func TestAccDeltaStreamStore(t *testing.T) {
 			ProtoV6ProviderFactories: testAccProviders,
 			ConfigFile:               config.StaticFile("testcases/store_kinesis.tf"),
 			ConfigVariables: config.Variables{
-				"region":         config.StringVariable(creds["region"]),
-				"kinesis_url":    config.StringVariable(creds["kinesis_uri"]),
-				"kinesis_region": config.StringVariable(creds["kinesis_region"]),
-				"kinesis_key":    config.StringVariable(creds["kinesis_key"]),
-				"kinesis_secret": config.StringVariable(creds["kinesis_secret"]),
+				"region":             config.StringVariable(creds["region"]),
+				"kinesis_url":        config.StringVariable(creds["kinesis_uri"]),
+				"kinesis_region":     config.StringVariable(creds["kinesis_region"]),
+				"kinesis_key":        config.StringVariable(creds["kinesis_key"]),
+				"kinesis_secret":     config.StringVariable(creds["kinesis_secret"]),
+				"kinesis_account_id": config.StringVariable(creds["kinesis_account_id"]),
 			},
 			Check: resource.ComposeTestCheckFunc(
 				// resources

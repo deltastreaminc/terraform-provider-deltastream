@@ -55,13 +55,11 @@ func getDatabaseSchema() schema.Schema {
 			"name": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the Database",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Creation date of the Database",
@@ -90,7 +88,14 @@ func (d *DatabaseDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer conn.Close()
 
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT "owner", created_at FROM deltastream.sys."databases" WHERE name = '%s';`, database.Name.ValueString()))
+	dsql, err := util.ExecTemplate(lookupDatabaseTmpl, map[string]any{
+		"DatabaseName": database.Name.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	if err := row.Err(); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read database", err)
 		return

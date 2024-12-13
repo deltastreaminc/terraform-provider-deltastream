@@ -58,7 +58,6 @@ func getRegionSchema() schema.Schema {
 			"name": schema.StringAttribute{
 				Description: "Name of the Region",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"cloud": schema.StringAttribute{
 				Description: "Cloud provider of the Region",
@@ -91,7 +90,12 @@ func (d *RegionDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST REGIONS;`)
+	dsql, err := util.ExecTemplate(lookupRegionsTmpl, map[string]any{})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list regions", err)
 		return
@@ -107,7 +111,7 @@ func (d *RegionDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read region", err)
 			return
 		}
-		if name == dsRegion.Name.ValueString() {
+		if util.ParseIdentifier(name) == dsRegion.Name.ValueString() {
 			found = true
 			dsRegion.Cloud = basetypes.NewStringValue(cloud)
 			dsRegion.Region = basetypes.NewStringValue(region)

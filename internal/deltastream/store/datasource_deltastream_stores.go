@@ -120,7 +120,11 @@ func (d *StoresDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `SELECT "name", "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores";`)
+	dsql, err := util.ExecTemplate(listStoresTmpl, map[string]any{})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
 	}

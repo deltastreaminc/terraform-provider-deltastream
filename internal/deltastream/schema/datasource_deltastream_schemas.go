@@ -49,7 +49,6 @@ func (d *SchemasDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 			"database": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"items": schema.ListNestedAttribute{
 				Description: "List of schemas",
@@ -86,7 +85,14 @@ func (d *SchemasDataSource) Read(ctx context.Context, req datasource.ReadRequest
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST SCHEMAS IN DATABASE "%s";`, schemas.Database.ValueString()))
+	dsql, err := util.ExecTemplate(listSchemasTmpl, map[string]any{
+		"DatabaseName": schemas.Database.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schemas", err)
 		return
@@ -95,11 +101,10 @@ func (d *SchemasDataSource) Read(ctx context.Context, req datasource.ReadRequest
 
 	items := []SchemaDatasourceData{}
 	for rows.Next() {
-		var discard any
 		var name string
 		var owner string
 		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
+		if err := rows.Scan(&name, &owner, &createdAt); err != nil {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read schemas", err)
 			return
 		}

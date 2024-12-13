@@ -44,13 +44,13 @@ resource "deltastream_relation" "pageviews" {
   schema   = "public"
   store    = deltastream_store.kafka_with_iam.name
   sql      = <<EOF
-    CREATE STREAM query_msk_iam_pageviews_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
+    CREATE STREAM "Query_msk_iam_pageviews_${random_id.suffix.hex}-东西" (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
   EOF
 }
 
 resource "deltastream_entity" "pageviews_6" {
   store       = deltastream_store.kafka_with_iam.name
-  entity_path = ["query_msk_iam_pageviews_6_${random_id.suffix.hex}"]
+  entity_path = ["Query_msk_iam_pageviews_6_${random_id.suffix.hex}"]
   kafka_properties = {
     topic_partitions = 3
     topic_replicas   = 3
@@ -62,7 +62,7 @@ resource "deltastream_relation" "pageviews_6" {
   schema   = "public"
   store    = deltastream_store.kafka_with_iam.name
   sql      = <<EOF
-    CREATE STREAM query_msk_iam_pageviews_6_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='${deltastream_entity.pageviews_6.entity_path[0]}', 'value.format'='json');
+    CREATE STREAM "Query_msk_iam_pageviews_6_${random_id.suffix.hex}-东西" (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='${deltastream_entity.pageviews_6.entity_path[0]}', 'value.format'='json');
   EOF
 }
 

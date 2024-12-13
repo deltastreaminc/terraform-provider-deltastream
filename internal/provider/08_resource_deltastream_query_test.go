@@ -48,6 +48,7 @@ func TestAccDeltaStreamQuery(t *testing.T) {
 				// 		"kinesis_region": config.StringVariable(creds["kinesis-az"]),
 				// 		"kinesis_key":    config.StringVariable(creds["kinesis-key-id"]),
 				// 		"kinesis_secret": config.StringVariable(creds["kinesis-access-key"]),
+				//		"kinesis_account_id": config.StringVariable(creds["kinesis-account-id"]),
 				// 	},
 				// 	Check: resource.ComposeTestCheckFunc(
 				// 		// resources

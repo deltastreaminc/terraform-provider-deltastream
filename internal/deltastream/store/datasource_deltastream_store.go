@@ -154,7 +154,6 @@ func (d *StoreDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 			"name": schema.StringAttribute{
 				Description: "Name of the Store",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"access_region": schema.StringAttribute{
 				Description: "Specifies the region of the Store. In order to improve latency and reduce data transfer costs, the region should be the same cloud and region that the physical Store is running in.",
@@ -314,7 +313,13 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	}
 	defer conn.Close()
 
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores" WHERE name = '%s';`, store.Name.ValueString()))
+	dsql, err := util.ExecTemplate(lookupStoreTmpl, map[string]any{
+		"Name": store.Name.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	if row.Err() != nil {
 		if errors.Is(row.Err(), sql.ErrNoRows) {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read store details", &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidStore})
@@ -344,7 +349,13 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	store.Owner = types.StringValue(owner)
 	store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 
-	row = conn.QueryRowContext(ctx, fmt.Sprintf(`DESCRIBE STORE "%s";`, store.Name.ValueString()))
+	dsql, err = util.ExecTemplate(describeStoreTmpl, map[string]any{
+		"Name": store.Name.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+	}
+	row = conn.QueryRowContext(ctx, dsql)
 	var metadataJSON string
 	var uri string
 	var detailsJSON string

@@ -5,7 +5,6 @@ package relation
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -117,26 +116,32 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer conn.Close()
 
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE database_name = '%s' AND schema_name = '%s' AND name = '%s';`, rel.Database.ValueString(), rel.Schema.ValueString(), rel.Name.ValueString()))
+	dsql, err := util.ExecTemplate(lookupRelationTmpl, map[string]any{
+		"DatabaseName": rel.Database.ValueString(),
+		"SchemaName":   rel.Schema.ValueString(),
+		"Name":         rel.Name.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	if err := row.Err(); err != nil {
-		if err == sql.ErrNoRows {
-			resp.Diagnostics.AddError("error loading relation", "relation not found")
-			return
-		}
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read relation", err)
 		return
 	}
 
 	var (
 		kind      string
+		fqn       string
 		owner     string
 		state     string
 		createdAt time.Time
 		updatedAt time.Time
 	)
-	if err := row.Scan(&kind, &owner, &state, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&kind, &fqn, &owner, &state, &createdAt, &updatedAt); err != nil {
 	}
-	rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), rel.Name.ValueString()))
+	rel.FQN = types.StringValue(fqn)
 	rel.Owner = types.StringValue(owner)
 	rel.Type = types.StringValue(kind)
 	rel.State = types.StringValue(state)
