@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -232,7 +233,12 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create relation", err)
 		return
 	}
-	relation.FQN = types.StringValue(artifactDDL.Name)
+	fqn := artifactDDL.Name
+	// rebuild fqn
+	if !strings.HasPrefix(fqn, `"`) {
+		fqn = fmt.Sprintf(`%q.%q.%q`, relation.Database.ValueString(), relation.Schema.ValueString(), strings.TrimPrefix(fqn, fmt.Sprintf(`%s.%s.`, relation.Database.ValueString(), relation.Schema.ValueString())))
+	}
+	relation.FQN = types.StringValue(fqn)
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
 		relation, err = d.updateComputed(ctx, conn, relation)
@@ -259,7 +265,7 @@ func (d *RelationResource) Create(ctx context.Context, req resource.CreateReques
 }
 
 func (d *RelationResource) updateComputed(ctx context.Context, conn *sql.Conn, rel RelationResourceData) (RelationResourceData, error) {
-	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT name, relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE database_name || '.' || schema_name || '.' || name = '%s';`, rel.FQN.ValueString()))
+	row := conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT name, relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE ('"' || database_name || '"."' || schema_name || '"."' || name || '"') = '%s';`, rel.FQN.ValueString()))
 	if err := row.Err(); err != nil {
 		return rel, err
 	}

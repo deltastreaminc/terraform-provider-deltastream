@@ -136,7 +136,7 @@ func (d *RelationDataSource) Read(ctx context.Context, req datasource.ReadReques
 	)
 	if err := row.Scan(&kind, &owner, &state, &createdAt, &updatedAt); err != nil {
 	}
-	rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), rel.Name.ValueString()))
+	rel.FQN = types.StringValue(fmt.Sprintf(`%q.%q.%q`, rel.Database.ValueString(), rel.Schema.ValueString(), rel.Name.ValueString()))
 	rel.Owner = types.StringValue(owner)
 	rel.Type = types.StringValue(kind)
 	rel.State = types.StringValue(state)
