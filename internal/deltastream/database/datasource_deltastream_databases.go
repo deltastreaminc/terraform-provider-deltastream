@@ -80,7 +80,12 @@ func (d *DatabasesDataSource) Read(ctx context.Context, req datasource.ReadReque
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `SELECT name, "owner", created_at FROM deltastream.sys."databases";`)
+	dsql, err := util.ExecTemplate(listDatabasesTmpl, map[string]any{})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list databases", err)
 		return

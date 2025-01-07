@@ -4,12 +4,10 @@
 package schema
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -49,18 +47,15 @@ func (d *SchemaResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"database": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the Schema",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the schema",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Creation date of the schema",
@@ -89,8 +84,6 @@ func (d *SchemaResource) Metadata(ctx context.Context, req resource.MetadataRequ
 	resp.TypeName = req.ProviderTypeName + "_schema"
 }
 
-const createStatement = `CREATE SCHEMA "{{.Name}}" IN DATABASE "{{.Database}}";`
-
 // Create implements resource.Resource.
 func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var schema SchemaResourceData
@@ -113,12 +106,15 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 	defer conn.Close()
 
-	b := bytes.NewBuffer(nil)
-	template.Must(template.New("").Parse(createStatement)).Execute(b, map[string]any{
-		"Database": schema.Database.ValueString(),
-		"Name":     schema.Name.ValueString(),
+	dsql, err := util.ExecTemplate(createSchemaTmpl, map[string]any{
+		"DatabaseName": schema.Database.ValueString(),
+		"Name":         schema.Name.ValueString(),
 	})
-	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create schema", err)
 		return
 	}
@@ -134,7 +130,15 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 		return nil
 	}); err != nil {
-		if _, derr := conn.ExecContext(ctx, fmt.Sprintf(`DROP SCHEMA "%s"."%s";`, schema.Database.ValueString(), schema.Name.ValueString())); derr != nil {
+		dsql, derr := util.ExecTemplate(dropSchemaTmpl, map[string]any{
+			"DatabaseName": schema.Database.ValueString(),
+			"Name":         schema.Name.ValueString(),
+		})
+		if derr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", derr)
+			return
+		}
+		if _, derr := conn.ExecContext(ctx, dsql); derr != nil {
 			tflog.Error(ctx, "failed to clean up schema", map[string]any{
 				"name":  schema.Name.ValueString(),
 				"error": derr.Error(),
@@ -148,28 +152,31 @@ func (d *SchemaResource) Create(ctx context.Context, req resource.CreateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, schema)...)
 }
 
-func (d *SchemaResource) updateComputed(ctx context.Context, conn *sql.Conn, sch SchemaResourceData) (SchemaResourceData, error) {
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`LIST SCHEMAS IN DATABASE "%s";`, sch.Database.ValueString()))
+func (d *SchemaResource) updateComputed(ctx context.Context, conn *sql.Conn, schema SchemaResourceData) (SchemaResourceData, error) {
+	dsql, err := util.ExecTemplate(lookupSchemaTmpl, map[string]any{
+		"DatabaseName": schema.Database.ValueString(),
+		"Name":         schema.Name.ValueString(),
+	})
 	if err != nil {
-		return sch, err
+		return schema, fmt.Errorf("failed to generate SQL: %w", err)
 	}
-	defer rows.Close()
+	row := conn.QueryRowContext(ctx, dsql)
+	if err := row.Err(); err != nil {
+		return schema, fmt.Errorf("failed to lookup schema: %w", err)
+	}
 
-	for rows.Next() {
-		var discard any
-		var name string
-		var owner string
-		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			return sch, err
+	var owner string
+	var createdAt time.Time
+	if err := row.Scan(&owner, &createdAt); err != nil {
+		if err == sql.ErrNoRows {
+			return schema, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSchema}
 		}
-		if name == sch.Name.ValueString() {
-			sch.Owner = types.StringValue(owner)
-			sch.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			return sch, nil
-		}
+		return schema, fmt.Errorf("failed to read schema: %w", err)
 	}
-	return SchemaResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSchema}
+
+	schema.Owner = types.StringValue(owner)
+	schema.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return schema, nil
 }
 
 func (d *SchemaResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -192,7 +199,15 @@ func (d *SchemaResource) Delete(ctx context.Context, req resource.DeleteRequest,
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP SCHEMA "%s"."%s";`, schema.Database.ValueString(), schema.Name.ValueString())); err != nil {
+	dsql, err := util.ExecTemplate(dropSchemaTmpl, map[string]any{
+		"DatabaseName": schema.Database.ValueString(),
+		"Name":         schema.Name.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || (sqlErr.SQLCode != gods.SqlStateInvalidDatabase && sqlErr.SQLCode != gods.SqlStateInvalidSchema) {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete schema", err)

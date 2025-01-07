@@ -51,6 +51,10 @@ variable "kinesis_secret" {
   type = string
 }
 
+variable "kinesis_account_id" {
+  type = string
+}
+
 resource "deltastream_store" "kinesis_creds" {
   name          = "query_kinesis_kinesis_sink_${random_id.suffix.hex}"
   access_region = var.kinesis_region
@@ -58,6 +62,7 @@ resource "deltastream_store" "kinesis_creds" {
     uris              = var.kinesis_url
     access_key_id     = var.kinesis_key
     secret_access_key = var.kinesis_secret
+    aws_account_id    = var.kinesis_account_id
   }
 }
 
@@ -70,13 +75,13 @@ resource "deltastream_relation" "pageviews" {
   schema   = "public"
   store    = deltastream_store.kafka_with_iam.name
   sql      = <<EOF
-    CREATE STREAM query_kinesis_pageviews_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
+    CREATE STREAM "Query_kinesis_pageviews_${random_id.suffix.hex}-东西" (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
   EOF
 }
 
 resource "deltastream_entity" "pageviews_6" {
   store       = deltastream_store.kinesis_creds.name
-  entity_path = ["query_kinesis_pageviews_6_${random_id.suffix.hex}"]
+  entity_path = ["Query_kinesis_pageviews_6_${random_id.suffix.hex}.-0"]
   kafka_properties = {
     kinesis_shards = 1
   }

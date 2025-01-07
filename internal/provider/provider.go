@@ -83,7 +83,6 @@ func providerSchema() schema.Schema {
 			"role": schema.StringAttribute{
 				Description: "DeltaStream role to use for managing resources and queries. Can also be set via the DELTASTREAM_ROLE environment variable. Default: sysadmin",
 				Optional:    true,
-				Validators:  util.IdentifierValidators,
 			},
 		},
 	}

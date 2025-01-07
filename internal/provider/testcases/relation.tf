@@ -25,7 +25,7 @@ variable "pub_msk_region" {
 }
 
 resource "deltastream_store" "kafka_with_iam" {
-  name          = "relation_kakfa_source_${random_id.suffix.hex}"
+  name          = "Relation_kakfa_source_${random_id.suffix.hex}-东西"
   access_region = data.deltastream_region.region.name
   kafka = {
     uris               = var.pub_msk_iam_uri

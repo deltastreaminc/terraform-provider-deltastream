@@ -45,7 +45,7 @@ variable "snowflake_client_key_passphrase" {
 }
 
 resource "deltastream_store" "snowflake" {
-  name          = "store_snowflake_${random_id.suffix.hex}"
+  name          = "Store_snowflake_${random_id.suffix.hex}-东西"
   access_region = data.deltastream_region.region.name
   snowflake = {
     uris                  = var.snowflake_uris

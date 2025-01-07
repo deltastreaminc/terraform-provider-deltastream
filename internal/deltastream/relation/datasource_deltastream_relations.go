@@ -128,7 +128,15 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, fmt.Sprintf(`SELECT name, relation_type, "owner", "state", created_at, updated_at FROM deltastream.sys."relations" WHERE database_name = '%s' AND schema_name = '%s';`, rels.Database.ValueString(), rels.Schema.ValueString()))
+	dsql, err := util.ExecTemplate(listRelationsTmpl, map[string]any{
+		"DatabaseName": rels.Database.ValueString(),
+		"SchemaName":   rels.Schema.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to load relations", err)
 		return
@@ -137,6 +145,7 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 
 	var (
 		name      string
+		fqn       string
 		kind      string
 		owner     string
 		state     string
@@ -150,13 +159,13 @@ func (d *RelationsDataSource) Read(ctx context.Context, req datasource.ReadReque
 			Database: rels.Database,
 			Schema:   rels.Schema,
 		}
-		if err := rows.Scan(&name, &kind, &owner, &state, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&name, &fqn, &kind, &owner, &state, &createdAt, &updatedAt); err != nil {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read relation", err)
 			return
 		}
 
 		rel.Name = types.StringValue(name)
-		rel.FQN = types.StringValue(fmt.Sprintf("%s.%s.%s", rel.Database.ValueString(), rel.Schema.ValueString(), name))
+		rel.FQN = types.StringValue(fqn)
 		rel.Owner = types.StringValue(owner)
 		rel.Type = types.StringValue(kind)
 		rel.State = types.StringValue(state)

@@ -20,13 +20,18 @@ variable "kinesis_secret" {
   type = string
 }
 
+variable "kinesis_account_id" {
+  type = string
+}
+
 resource "deltastream_store" "kinesis_creds" {
-  name          = "store_kinesis_with_creds_${random_id.suffix.hex}"
+  name          = "Store_kinesis_with_creds_${random_id.suffix.hex}-东西"
   access_region = var.kinesis_region
   kinesis = {
     uris              = var.kinesis_url
     access_key_id     = var.kinesis_key
     secret_access_key = var.kinesis_secret
+    aws_account_id    = var.kinesis_account_id
   }
 }
 

@@ -40,7 +40,7 @@ variable "databricks_bucket_region" {
 }
 
 resource "deltastream_store" "databricks" {
-  name          = "store_databricks_${random_id.suffix.hex}"
+  name          = "Store_databricks_${random_id.suffix.hex}-东西"
   access_region = data.deltastream_region.region.name
   databricks = {
     uris              = var.databricks_uri

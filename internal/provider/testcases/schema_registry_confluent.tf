@@ -25,7 +25,7 @@ variable "schema_registry_password" {
 }
 
 resource "deltastream_schema_registry" "confluent" {
-  name          = "schema_registry_confluent_${random_id.suffix.hex}"
+  name          = "Schema_registry_confluent_${random_id.suffix.hex}-东西"
   access_region = data.deltastream_region.region.name
   confluent = {
     uris     = var.schema_registry_uris

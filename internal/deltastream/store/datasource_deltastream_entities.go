@@ -4,10 +4,8 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"text/template"
 
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
@@ -61,7 +59,6 @@ func (d *EntitiesDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 			"store": schema.StringAttribute{
 				Description: "Name of the Store",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"parent_path": schema.ListAttribute{
 				Description: "Path to parent entity",
@@ -76,16 +73,6 @@ func (d *EntitiesDataSource) Schema(ctx context.Context, req datasource.SchemaRe
 		},
 	}
 }
-
-const listEntitiesStatement = `LIST ENTITIES 
-	{{ if ne (len .ParentPath) 0 }}
-	IN {{ range $index, $element := .ParentPath -}}
-        {{- if $index}}.{{end -}}
-        "{{$element}}"
-    {{- end }}
-	{{ end }}
-	IN STORE "{{ .StoreName }}";
-`
 
 func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	entityData := EntitiesDataSourceData{}
@@ -107,16 +94,15 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		resp.Diagnostics.Append(entityData.ParentPath.ElementsAs(ctx, &parentPath, false)...)
 	}
 
-	b := bytes.NewBuffer(nil)
-	if err := template.Must(template.New("").Parse(listEntitiesStatement)).Execute(b, map[string]any{
+	dsql, err := util.ExecTemplate(listEntityTmpl, map[string]any{
 		"StoreName":  entityData.Store.ValueString(),
 		"ParentPath": parentPath,
-	}); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list entities in store", err)
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
 		return
 	}
-
-	rows, err := conn.QueryContext(ctx, b.String())
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list store entities", err)
 		return
@@ -131,7 +117,7 @@ func (d *EntitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read topics", err)
 			return
 		}
-		items = append(items, name)
+		items = append(items, util.ParseIdentifier(name))
 	}
 
 	var dg diag.Diagnostics

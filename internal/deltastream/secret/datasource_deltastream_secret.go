@@ -5,6 +5,7 @@ package secret
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -63,7 +64,6 @@ func getSecretSchema() schema.Schema {
 			"name": schema.StringAttribute{
 				Description: "Name of the Secret",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"type": schema.StringAttribute{
 				Description: "Secret type. (Valid values: generic_string)",
@@ -116,44 +116,42 @@ func (d *SecretDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST SECRETS;`)
+	dsql, err := util.ExecTemplate(lookupSecretTmpl, map[string]any{
+		"Name": secret.Name.ValueString(),
+	})
 	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	row := conn.QueryRowContext(ctx, dsql)
+	if err := row.Err(); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list secrets", err)
 		return
 	}
-	defer rows.Close()
 
-	found := false
-	for rows.Next() {
-		var name string
-		var stype string
-		var description string
-		var region string
-		var owner string
-		var status string
-		var createdAt time.Time
-		var updatedAt time.Time
-		if err := rows.Scan(&name, &stype, &description, &region, &status, &owner, &createdAt, &updatedAt); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read secret", err)
+	var stype string
+	var description *string
+	var region string
+	var owner string
+	var status string
+	var createdAt time.Time
+	var updatedAt time.Time
+	if err := row.Scan(&stype, &description, &region, &status, &owner, &createdAt, &updatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			resp.Diagnostics.AddError("error loading secret", "secret not found")
 			return
 		}
-		if name == secret.Name.ValueString() {
-			found = true
-			secret.Type = types.StringValue(stype)
-			secret.Description = types.StringValue(description)
-			secret.AccessRegion = types.StringValue(region)
-			secret.Status = types.StringValue(status)
-			secret.Owner = types.StringValue(owner)
-			secret.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			secret.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
-			break
-		}
-	}
-
-	if !found {
-		resp.Diagnostics.AddError("error loading secret", "secret not found")
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read secret", err)
 		return
 	}
+
+	secret.Type = types.StringValue(stype)
+	secret.Description = types.StringPointerValue(description)
+	secret.AccessRegion = types.StringValue(region)
+	secret.Status = types.StringValue(status)
+	secret.Owner = types.StringValue(owner)
+	secret.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	secret.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &secret)...)
 }

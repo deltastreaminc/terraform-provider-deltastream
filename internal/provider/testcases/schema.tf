@@ -13,7 +13,7 @@ resource "random_id" "sch2" {
 }
 
 resource "deltastream_database" "db1" {
-  name          = "schema_${random_id.db1.hex}"
+  name          = "Schema_${random_id.db1.hex}-东西"
 }
 
 resource "deltastream_schema" "sch1" {
