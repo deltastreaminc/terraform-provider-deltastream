@@ -1,7 +1,8 @@
 module github.com/deltastreaminc/terraform-provider-deltastream
 
-go 1.22.1
-toolchain go1.24.1
+go 1.23.0
+
+toolchain go1.24.2
 
 require (
 	github.com/deltastreaminc/go-deltastream v0.0.0-20241112143750-413ee1b033f0
