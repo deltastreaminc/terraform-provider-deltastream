@@ -33,7 +33,6 @@ Required:
 
 Read-Only:
 
-- `access_region` (String) Region the secret will be used in
 - `created_at` (String) Creation date of the Secret
 - `description` (String) Description of the Secret
 - `owner` (String) Owning role of the Secret

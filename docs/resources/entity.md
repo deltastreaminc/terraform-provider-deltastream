@@ -22,19 +22,10 @@ Database resource
 
 ### Optional
 
-- `databricks_properties` (Attributes) Databricks properties (see [below for nested schema](#nestedatt--databricks_properties))
 - `kafka_properties` (Attributes) Kafka properties (see [below for nested schema](#nestedatt--kafka_properties))
 - `kinesis_properties` (Attributes) Kinesis properties (see [below for nested schema](#nestedatt--kinesis_properties))
 - `postgres_properties` (Attributes) Postgres properties (see [below for nested schema](#nestedatt--postgres_properties))
 - `snowflake_properties` (Attributes) Snowflake properties (see [below for nested schema](#nestedatt--snowflake_properties))
-
-<a id="nestedatt--databricks_properties"></a>
-### Nested Schema for `databricks_properties`
-
-Read-Only:
-
-- `details` (Map of String)
-
 
 <a id="nestedatt--kafka_properties"></a>
 ### Nested Schema for `kafka_properties`

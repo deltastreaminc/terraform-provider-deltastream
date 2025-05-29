@@ -1,13 +1,5 @@
 provider "deltastream" {}
 
-variable "region" {
-  type = string
-}
-
-data "deltastream_region" "region" {
-  name = var.region
-}
-
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -26,7 +18,6 @@ variable "pub_msk_region" {
 
 resource "deltastream_store" "kafka_with_iam" {
   name          = "Store_msk_iam_${random_id.suffix.hex}-东西"
-  access_region = data.deltastream_region.region.name
   kafka = {
     uris               = var.pub_msk_iam_uri
     sasl_hash_function = "AWS_MSK_IAM"
@@ -45,7 +36,7 @@ data "deltastream_store" "kafka_with_iam" {
 
 resource "deltastream_entity" "test_topic" {
   store = data.deltastream_store.kafka_with_iam.name
-  entity_path = ["test_topic_${random_id.suffix.hex}"]
+  entity_path = ["test_topic_git_${random_id.suffix.hex}"]
 }
 
 data "deltastream_entities" "all" {

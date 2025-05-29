@@ -150,6 +150,7 @@ type artifactDDL struct {
 	Name    string `json:"name"`
 	Command string `json:"command"`
 	Summary string `json:"summary"`
+	Path    string `json:"path"`
 }
 
 // Create implements resource.Resource.
@@ -231,7 +232,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	artifactDDL := artifactDDL{}
 	row = conn.QueryRowContext(ctx, query.Sql.ValueString())
-	if err := row.Scan(&artifactDDL.Type, &artifactDDL.Name, &artifactDDL.Command, &artifactDDL.Summary); err != nil {
+	if err := row.Scan(&artifactDDL.Type, &artifactDDL.Name, &artifactDDL.Command, &artifactDDL.Summary, &artifactDDL.Path); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to launch query", err)
 		return
 	}

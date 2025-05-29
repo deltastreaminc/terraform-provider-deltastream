@@ -90,22 +90,6 @@ func (SnowflakeDatasourceProperties) AttributeTypes() map[string]attr.Type {
 	}
 }
 
-type DatabricksDatasourceProperties struct {
-	Uris          types.String `tfsdk:"uris"`
-	WarehouseId   types.String `tfsdk:"warehouse_id"`
-	CloudS3Bucket types.String `tfsdk:"cloud_s3_bucket"`
-	CloudRegion   types.String `tfsdk:"cloud_region"`
-}
-
-func (DatabricksDatasourceProperties) AttributeTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"uris":            types.StringType,
-		"warehouse_id":    types.StringType,
-		"cloud_s3_bucket": types.StringType,
-		"cloud_region":    types.StringType,
-	}
-}
-
 type PostgresDatasourceProperties struct {
 	Uris types.String `tfsdk:"uris"`
 }
@@ -118,7 +102,6 @@ func (PostgresDatasourceProperties) AttributeTypes() map[string]attr.Type {
 
 type StoreDatasourceData struct {
 	Name           types.String `tfsdk:"name"`
-	AccessRegion   types.String `tfsdk:"access_region"`
 	Type           types.String `tfsdk:"type"`
 	Owner          types.String `tfsdk:"owner"`
 	State          types.String `tfsdk:"state"`
@@ -126,7 +109,6 @@ type StoreDatasourceData struct {
 	ConfluentKafka types.Object `tfsdk:"confluent_kafka"`
 	Kinesis        types.Object `tfsdk:"kinesis"`
 	Snowflake      types.Object `tfsdk:"snowflake"`
-	Databricks     types.Object `tfsdk:"databricks"`
 	Postgres       types.Object `tfsdk:"postgres"`
 	UpdatedAt      types.String `tfsdk:"updated_at"`
 	CreatedAt      types.String `tfsdk:"created_at"`
@@ -154,10 +136,6 @@ func (d *StoreDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 			"name": schema.StringAttribute{
 				Description: "Name of the Store",
 				Required:    true,
-			},
-			"access_region": schema.StringAttribute{
-				Description: "Specifies the region of the Store. In order to improve latency and reduce data transfer costs, the region should be the same cloud and region that the physical Store is running in.",
-				Computed:    true,
 			},
 			"type": schema.StringAttribute{
 				Description: "Type of the Store",
@@ -240,29 +218,6 @@ func (d *StoreDataSource) Schema(ctx context.Context, req datasource.SchemaReque
 				Optional: true,
 			},
 
-			"databricks": schema.SingleNestedAttribute{
-				Description: "Databricks specific configuration",
-				Attributes: map[string]schema.Attribute{
-					"uris": schema.StringAttribute{
-						Description: "List of host:port URIs to connect to the store",
-						Computed:    true,
-					},
-					"warehouse_id": schema.StringAttribute{
-						Description: "The identifier for a Databricks SQL Warehouse belonging to a Databricks workspace. This Warehouse will be used to create and query Tables in Databricks",
-						Computed:    true,
-					},
-					"cloud_s3_bucket": schema.StringAttribute{
-						Description: "The name of the S3 bucket where the data will be stored",
-						Computed:    true,
-					},
-					"cloud_region": schema.StringAttribute{
-						Description: "The region where the S3 bucket is located",
-						Computed:    true,
-					},
-				},
-				Optional: true,
-			},
-
 			"postgres": schema.SingleNestedAttribute{
 				Description: "Postgres specific configuration",
 				Attributes: map[string]schema.Attribute{
@@ -329,19 +284,17 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	var accessRegion string
 	var kind string
 	var state string
 	var owner string
 	var createdAt time.Time
 	var updatedAt time.Time
-	if err := row.Scan(&accessRegion, &kind, &state, &owner, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&kind, &state, &owner, &createdAt, &updatedAt); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read store details", err)
 		return
 	}
 
 	store.Type = types.StringValue(kind)
-	store.AccessRegion = types.StringValue(accessRegion)
 	store.State = types.StringValue(state)
 	store.Owner = types.StringValue(owner)
 	store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
@@ -362,7 +315,8 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	var tlsEnabled bool
 	var verifyHostname bool
 	var schemaRegistryName *string
-	if err := row.Scan(&metadataJSON, &uri, &detailsJSON, &tlsEnabled, &verifyHostname, &schemaRegistryName); err != nil {
+	var storePath string
+	if err := row.Scan(&metadataJSON, &uri, &detailsJSON, &tlsEnabled, &verifyHostname, &schemaRegistryName, &storePath); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read store details", err)
 		return
 	}
@@ -389,7 +343,7 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	case "snowflake":
 		details := map[string]any{}
 		if err := yaml.Unmarshal([]byte(detailsJSON), &details); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to unmarshal databricks details", err)
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to unmarshal snowflake details", err)
 			return
 		}
 
@@ -398,19 +352,6 @@ func (d *StoreDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			AccountId:     types.StringValue(details["account_id"].(string)),
 			WarehouseName: types.StringValue(details["warehouse_name"].(string)),
 			RoleName:      types.StringValue(details["role_name"].(string)),
-		})
-	case "databricks":
-		details := map[string]any{}
-		if err := yaml.Unmarshal([]byte(detailsJSON), &details); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to unmarshal databricks details", err)
-			return
-		}
-
-		store.Databricks, dg = types.ObjectValueFrom(ctx, DatabricksDatasourceProperties{}.AttributeTypes(), DatabricksDatasourceProperties{
-			Uris:          types.StringValue(uri),
-			WarehouseId:   types.StringValue(details["sql_warehouse_id"].(string)),
-			CloudS3Bucket: types.StringValue(details["cloud_provider_bucket"].(string)),
-			CloudRegion:   types.StringValue(details["cloud_provider_region"].(string)),
 		})
 	case "postgres":
 		store.Postgres, dg = types.ObjectValueFrom(ctx, PostgresDatasourceProperties{}.AttributeTypes(), PostgresDatasourceProperties{

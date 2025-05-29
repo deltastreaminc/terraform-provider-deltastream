@@ -95,16 +95,6 @@ type SnowflakeProperties struct {
 	ClientKeyPassphrase types.String `tfsdk:"client_key_passphrase"`
 }
 
-type DatabricksProperties struct {
-	Uris            types.String `tfsdk:"uris"`
-	AppToken        types.String `tfsdk:"app_token"`
-	WarehouseId     types.String `tfsdk:"warehouse_id"`
-	AccessKeyId     types.String `tfsdk:"access_key_id"`
-	SecretAccessKey types.String `tfsdk:"secret_access_key"`
-	CloudS3Bucket   types.String `tfsdk:"cloud_s3_bucket"`
-	CloudRegion     types.String `tfsdk:"cloud_region"`
-}
-
 type PostgresProperties struct {
 	Uris     types.String `tfsdk:"uris"`
 	Username types.String `tfsdk:"username"`
@@ -113,13 +103,11 @@ type PostgresProperties struct {
 
 type StoreResourceData struct {
 	Name           types.String `tfsdk:"name"`
-	AccessRegion   types.String `tfsdk:"access_region"`
 	Type           types.String `tfsdk:"type"`
 	Kafka          types.Object `tfsdk:"kafka"`
 	ConfleuntKafka types.Object `tfsdk:"confluent_kafka"`
 	Kinesis        types.Object `tfsdk:"kinesis"`
 	Snowflake      types.Object `tfsdk:"snowflake"`
-	Databricks     types.Object `tfsdk:"databricks"`
 	Postgres       types.Object `tfsdk:"postgres"`
 	Owner          types.String `tfsdk:"owner"`
 	State          types.String `tfsdk:"state"`
@@ -133,10 +121,6 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				Description: "Name of the Store",
-				Required:    true,
-			},
-			"access_region": schema.StringAttribute{
-				Description: "Specifies the region of the Store. In order to improve latency and reduce data transfer costs, the region should be the same cloud and region that the physical Store is running in.",
 				Required:    true,
 			},
 			"type": schema.StringAttribute{
@@ -295,43 +279,6 @@ func (d *StoreResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Optional: true,
 			},
 
-			"databricks": schema.SingleNestedAttribute{
-				Description: "Databricks specific configuration",
-				Attributes: map[string]schema.Attribute{
-					"uris": schema.StringAttribute{
-						Description: "List of host:port URIs to connect to the store",
-						Required:    true,
-					},
-					"app_token": schema.StringAttribute{
-						Description: "Databricks personal access token used when authenticating with a Databricks workspace",
-						Required:    true,
-					},
-					"warehouse_id": schema.StringAttribute{
-						Description: "The identifier for a Databricks SQL Warehouse belonging to a Databricks workspace. This Warehouse will be used to create and query Tables in Databricks",
-						Required:    true,
-					},
-					"access_key_id": schema.StringAttribute{
-						Description: "AWS access key ID used for writing data to S3",
-						Required:    true,
-						Sensitive:   true,
-					},
-					"secret_access_key": schema.StringAttribute{
-						Description: "AWS secret access key used for writing data to S3",
-						Required:    true,
-						Sensitive:   true,
-					},
-					"cloud_s3_bucket": schema.StringAttribute{
-						Description: "The name of the S3 bucket where the data will be stored",
-						Required:    true,
-					},
-					"cloud_region": schema.StringAttribute{
-						Description: "The region where the S3 bucket is located",
-						Required:    true,
-					},
-				},
-				Optional: true,
-			},
-
 			"postgres": schema.SingleNestedAttribute{
 				Description: "Postgres specific configuration",
 				Attributes: map[string]schema.Attribute{
@@ -419,7 +366,6 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 	var confluentKafkaProperties ConfleuntKafkaProperties
 	var kinesisProperties KinesisProperties
 	var snowflakeProperties SnowflakeProperties
-	var databricksProperties DatabricksProperties
 	var postgresProperties PostgresProperties
 	var stype string
 
@@ -447,9 +393,6 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 		resp.Diagnostics.Append(store.Snowflake.As(ctx, &snowflakeProperties, basetypes.ObjectAsOptions{})...)
 		b := io.NopCloser(bytes.NewBuffer([]byte(snowflakeProperties.ClientKeyFile.ValueString())))
 		ctx = gods.WithAttachment(ctx, "snowflake.client.key_file.pem", b)
-	case !store.Databricks.IsNull() && !store.Databricks.IsUnknown():
-		stype = "DATABRICKS"
-		resp.Diagnostics.Append(store.Databricks.As(ctx, &databricksProperties, basetypes.ObjectAsOptions{})...)
 	case !store.Postgres.IsNull() && !store.Postgres.IsUnknown():
 		stype = "POSTGRESQL"
 		resp.Diagnostics.Append(store.Postgres.As(ctx, &postgresProperties, basetypes.ObjectAsOptions{})...)
@@ -463,12 +406,10 @@ func (d *StoreResource) Create(ctx context.Context, req resource.CreateRequest, 
 	dsql, err := util.ExecTemplate(createStoreTmpl, map[string]any{
 		"Name":           store.Name.ValueString(),
 		"Type":           stype,
-		"AccessRegion":   store.AccessRegion.ValueString(),
 		"Kafka":          kafkaProperties,
 		"ConfluentKafka": confluentKafkaProperties,
 		"Kinesis":        kinesisProperties,
 		"Snowflake":      snowflakeProperties,
-		"Databricks":     databricksProperties,
 		"Postgres":       postgresProperties,
 	})
 	if err != nil {
@@ -531,18 +472,16 @@ func (d *StoreResource) updateComputed(ctx context.Context, conn *sql.Conn, stor
 		return store, row.Err()
 	}
 
-	var accessRegion string
 	var kind string
 	var state string
 	var owner string
 	var createdAt time.Time
 	var updatedAt time.Time
-	if err := row.Scan(&accessRegion, &kind, &state, &owner, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&kind, &state, &owner, &createdAt, &updatedAt); err != nil {
 		return store, err
 	}
 
 	store.Type = types.StringValue(kind)
-	store.AccessRegion = types.StringValue(accessRegion)
 	store.State = types.StringValue(state)
 	store.Owner = types.StringValue(owner)
 	store.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))

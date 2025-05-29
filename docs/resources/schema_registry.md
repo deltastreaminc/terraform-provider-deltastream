@@ -17,7 +17,6 @@ Schema registry resource
 
 ### Required
 
-- `access_region` (String) Region the schema registry will be used in
 - `name` (String) Name of the schema registry
 
 ### Optional

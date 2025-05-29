@@ -73,10 +73,6 @@ func (d *SchemaRegistriesDataSource) Schema(ctx context.Context, req datasource.
 							Description: "Type of the schema registry",
 							Computed:    true,
 						},
-						// "access_region": schema.StringAttribute{
-						// 	Description: "Specifies the region of the schema registry",
-						// 	Computed:    true,
-						// },
 						"state": schema.StringAttribute{
 							Description: "State of the schema registry",
 							Computed:    true,

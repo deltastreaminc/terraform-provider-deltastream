@@ -14,8 +14,7 @@ Store resource
 
 ```terraform
 resource "deltastream_store" "kafka_with_sasl" {
-  name          = "kafka_with_sasl_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "kafka_with_sasl_${random_id.suffix.hex}"
   kafka = {
     uris               = var.kafka_url
     sasl_hash_function = "PLAIN"
@@ -25,8 +24,7 @@ resource "deltastream_store" "kafka_with_sasl" {
 }
 
 resource "deltastream_store" "confluent_kafka_with_sasl" {
-  name          = "confluent_kafka_with_sasl_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "confluent_kafka_with_sasl_${random_id.suffix.hex}"
   confluent_kafka = {
     uris               = var.kafka_url
     sasl_hash_function = "PLAIN"
@@ -36,8 +34,7 @@ resource "deltastream_store" "confluent_kafka_with_sasl" {
 }
 
 resource "deltastream_store" "kafka_with_iam" {
-  name          = "kafka_with_iam_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "kafka_with_iam_${random_id.suffix.hex}"
   kafka = {
     uris               = var.msk_url
     sasl_hash_function = "AWS_MSK_IAM"
@@ -47,8 +44,7 @@ resource "deltastream_store" "kafka_with_iam" {
 }
 
 resource "deltastream_store" "kinesis_creds" {
-  name          = "kinesis_with_creds_${random_id.suffix.hex}"
-  access_region = var.kinesis_region
+  name = "kinesis_with_creds_${random_id.suffix.hex}"
   kinesis = {
     uris              = var.kinesis_url
     access_key_id     = var.kinesis_key
@@ -56,23 +52,8 @@ resource "deltastream_store" "kinesis_creds" {
   }
 }
 
-resource "deltastream_store" "databricks" {
-  name          = "databricks_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
-  databricks = {
-    uris              = var.databricks_uri
-    app_token         = var.databricks_app_token
-    warehouse_id      = var.databricks_warehouse_id
-    access_key_id     = var.databricks_access_key_id
-    secret_access_key = var.databricks_secret_access_key
-    cloud_s3_bucket   = var.databricks_bucket
-    cloud_region      = var.databricks_bucket_region
-  }
-}
-
 resource "deltastream_store" "snowflake" {
-  name          = "snowflake_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "snowflake_${random_id.suffix.hex}"
   snowflake = {
     uris                  = var.snowflake_uris
     account_id            = var.snowflake_account_id
@@ -87,7 +68,6 @@ resource "deltastream_store" "snowflake" {
 
 # resource "deltastream_store" "postgres" {
 #   name          = "kinesis_with_creds_${random_id.suffix.hex}"
-#   access_region = "AWS us-west-2"
 #   postgres = {
 #     uris = var.postgres_uris
 #     username = var.postgres_username
@@ -101,13 +81,11 @@ resource "deltastream_store" "snowflake" {
 
 ### Required
 
-- `access_region` (String) Specifies the region of the Store. In order to improve latency and reduce data transfer costs, the region should be the same cloud and region that the physical Store is running in.
 - `name` (String) Name of the Store
 
 ### Optional
 
 - `confluent_kafka` (Attributes) Confluent Kafka specific configuration (see [below for nested schema](#nestedatt--confluent_kafka))
-- `databricks` (Attributes) Databricks specific configuration (see [below for nested schema](#nestedatt--databricks))
 - `kafka` (Attributes) Kafka specific configuration (see [below for nested schema](#nestedatt--kafka))
 - `kinesis` (Attributes) Kinesis specific configuration (see [below for nested schema](#nestedatt--kinesis))
 - `owner` (String) Owning role of the Store
@@ -130,20 +108,6 @@ Required:
 - `sasl_password` (String, Sensitive) Password to use when authenticating with Apache Kafka brokers
 - `sasl_username` (String, Sensitive) Username to use when authenticating with Apache Kafka brokers
 - `uris` (String) List of host:port URIs to connect to the store
-
-
-<a id="nestedatt--databricks"></a>
-### Nested Schema for `databricks`
-
-Required:
-
-- `access_key_id` (String, Sensitive) AWS access key ID used for writing data to S3
-- `app_token` (String) Databricks personal access token used when authenticating with a Databricks workspace
-- `cloud_region` (String) The region where the S3 bucket is located
-- `cloud_s3_bucket` (String) The name of the S3 bucket where the data will be stored
-- `secret_access_key` (String, Sensitive) AWS secret access key used for writing data to S3
-- `uris` (String) List of host:port URIs to connect to the store
-- `warehouse_id` (String) The identifier for a Databricks SQL Warehouse belonging to a Databricks workspace. This Warehouse will be used to create and query Tables in Databricks
 
 
 <a id="nestedatt--kafka"></a>

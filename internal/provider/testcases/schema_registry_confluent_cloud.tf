@@ -1,13 +1,5 @@
 provider "deltastream" {}
 
-variable "region" {
-  type = string
-}
-
-data "deltastream_region" "region" {
-  name = var.region
-}
-
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -38,7 +30,6 @@ variable "schema_registry_secret" {
 
 resource "deltastream_schema_registry" "confluent_cloud" {
   name          = "Schema_registry_confluent_cloud_${random_id.suffix.hex}-东西"
-  access_region = data.deltastream_region.region.name
   confluent_cloud = {
     uris   = var.schema_registry_uris
     key    = var.schema_registry_key
@@ -48,7 +39,6 @@ resource "deltastream_schema_registry" "confluent_cloud" {
 
 resource "deltastream_store" "kafka_with_iam" {
   name          = "schema_registry_${random_id.suffix.hex}"
-  access_region = data.deltastream_region.region.name
   kafka = {
     uris               = var.pub_msk_iam_uri
     sasl_hash_function = "AWS_MSK_IAM"
