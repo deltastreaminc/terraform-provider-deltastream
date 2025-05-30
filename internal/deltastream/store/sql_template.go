@@ -4,7 +4,7 @@ import "github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
 
 var createStoreTmpl = util.ParseTemplate(`CREATE STORE "{{EscapeIdentifier .Name}}" WITH(
 	{{- if eq .Type "KAFKA" }}
-		'type' = KAFKA, 'access_region' = "{{EscapeIdentifier .AccessRegion}}", 'kafka.sasl.hash_function' = {{.Kafka.SaslHashFunc.ValueString}},
+		'type' = KAFKA, 'kafka.sasl.hash_function' = {{.Kafka.SaslHashFunc.ValueString}},
 		{{- if eq .Kafka.SaslHashFunc.ValueString "AWS_MSK_IAM" }}
 			'kafka.msk.iam_role_arn' = '{{.Kafka.MskIamRoleArn.ValueString}}', 'kafka.msk.aws_region' = '{{.Kafka.MskAwsRegion.ValueString}}',
 		{{- else if ne .Kafka.SaslHashFunc.ValueString "NONE" }}
@@ -21,7 +21,7 @@ var createStoreTmpl = util.ParseTemplate(`CREATE STORE "{{EscapeIdentifier .Name
 		'uris' = '{{.Kafka.Uris.ValueString}}'
 	{{- end }}
 	{{- if eq .Type "CONFLUENT_KAFKA" }}
-		'type' = CONFLUENT_KAFKA, 'access_region' = "{{EscapeIdentifier .AccessRegion}}", 'kafka.sasl.hash_function' = {{.ConfluentKafka.SaslHashFunc.ValueString}}, 'kafka.sasl.username' = '{{.ConfluentKafka.SaslUsername.ValueString}}', 'kafka.sasl.password' = '{{.ConfluentKafka.SaslPassword.ValueString}}',
+		'type' = CONFLUENT_KAFKA,  'kafka.sasl.hash_function' = {{.ConfluentKafka.SaslHashFunc.ValueString}}, 'kafka.sasl.username' = '{{.ConfluentKafka.SaslUsername.ValueString}}', 'kafka.sasl.password' = '{{.ConfluentKafka.SaslPassword.ValueString}}',
 		{{- if not (or .ConfluentKafka.SchemaRegistry.IsNull .ConfluentKafka.SchemaRegistry.IsUnknown) }}
 			'schema_registry.name' = "{{.ConfluentKafka.SchemaRegistry.ValueString}}",
 		{{- end }}
@@ -29,27 +29,24 @@ var createStoreTmpl = util.ParseTemplate(`CREATE STORE "{{EscapeIdentifier .Name
 		'uris' = '{{.ConfluentKafka.Uris.ValueString}}'
 	{{- end }}
 	{{- if eq .Type "KINESIS" }}
-		'type' = KINESIS, 'access_region' = "{{EscapeIdentifier .AccessRegion}}", 'kinesis.account.id' = '{{.Kinesis.AwsAccountId}}',
+		'type' = KINESIS, 'kinesis.account.id' = '{{.Kinesis.AwsAccountId}}',
 		{{- if and .Kinesis.AccessKeyId .Kinesis.SecretAccessKey }}
 			'kinesis.access_key_id' = '{{.Kinesis.AccessKeyId.ValueString}}', 'kinesis.secret_access_key' = '{{.Kinesis.SecretAccessKey.ValueString}}',
 		{{- end }}
 		'uris' = '{{.Kinesis.Uris.ValueString}}'
 	{{- end }}
 	{{- if eq .Type "SNOWFLAKE" }}
-		'type' = SNOWFLAKE, 'access_region' = "{{EscapeIdentifier .AccessRegion}}", 'snowflake.account_id' = '{{.Snowflake.AccountId.ValueString}}', 'snowflake.cloud.region' = '{{.Snowflake.CloudRegion.ValueString}}', 'snowflake.warehouse_name' = '{{.Snowflake.WarehouseName.ValueString}}', 'snowflake.role_name' = '{{.Snowflake.RoleName.ValueString}}', 'snowflake.username' = '{{.Snowflake.Username.ValueString}}', 'snowflake.client.key_file' = 'snowflake.client.key_file.pem', 'snowflake.client.key_passphrase' = '{{.Snowflake.ClientKeyPassphrase.ValueString}}', 'uris' = '{{.Snowflake.Uris.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "DATABRICKS" }}
-		'type' = DATABRICKS, 'access_region' = "{{EscapeIdentifier .AccessRegion}}", 'databricks.app_token' = '{{.Databricks.AppToken.ValueString}}', 'databricks.warehouse_id' = '{{.Databricks.WarehouseId.ValueString}}', 'databricks.warehouse_port' = 443, 'aws.access_key_id' = '{{.Databricks.AccessKeyId.ValueString}}', 'aws.secret_access_key' = '{{.Databricks.SecretAccessKey.ValueString}}', 'databricks.cloud.s3.bucket' = '{{.Databricks.CloudS3Bucket.ValueString}}', 'databricks.cloud.region' = '{{.Databricks.CloudRegion.ValueString}}', 'uris' = '{{.Databricks.Uris.ValueString}}'
+		'type' = SNOWFLAKE, 'snowflake.account_id' = '{{.Snowflake.AccountId.ValueString}}', 'snowflake.cloud.region' = '{{.Snowflake.CloudRegion.ValueString}}', 'snowflake.warehouse_name' = '{{.Snowflake.WarehouseName.ValueString}}', 'snowflake.role_name' = '{{.Snowflake.RoleName.ValueString}}', 'snowflake.username' = '{{.Snowflake.Username.ValueString}}', 'snowflake.client.key_file' = 'snowflake.client.key_file.pem', 'snowflake.client.key_passphrase' = '{{.Snowflake.ClientKeyPassphrase.ValueString}}', 'uris' = '{{.Snowflake.Uris.ValueString}}'
 	{{- end }}
 	{{- if eq .Type "POSTGRESQL" }}
-		'type' = POSTGRESQL, 'access_region' = "{{EscapeIdentifier .AccessRegion}}", 'postgres.username' = '{{.Postgres.Username.ValueString}}', 'postgres.password' = '{{.Postgres.Password.ValueString}}', 'uris' = '{{.Postgres.Uris.ValueString}}'
+		'type' = POSTGRESQL, 'postgres.username' = '{{.Postgres.Username.ValueString}}', 'postgres.password' = '{{.Postgres.Password.ValueString}}', 'uris' = '{{.Postgres.Uris.ValueString}}'
 	{{- end }}
 );`)
 var dropStoreTmpl = util.ParseTemplate(`DROP STORE "{{EscapeIdentifier .Name}}";`)
-var lookupStoreTmpl = util.ParseTemplate(`SELECT "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores" WHERE name = '{{.Name}}';`)
+var lookupStoreTmpl = util.ParseTemplate(`SELECT type, status, "owner", created_at, updated_at FROM deltastream.sys."stores" WHERE name = '{{.Name}}';`)
 var lookupStoreTypeTmpl = util.ParseTemplate(`SELECT type FROM deltastream.sys."stores" WHERE name = '{{.Name}}';`)
 var describeStoreTmpl = util.ParseTemplate(`DESCRIBE STORE "{{EscapeIdentifier .Name}}";`)
-var listStoresTmpl = util.ParseTemplate(`SELECT name, "region", type, status, "owner", created_at, updated_at FROM deltastream.sys."stores";`)
+var listStoresTmpl = util.ParseTemplate(`SELECT name, type, status, "owner", created_at, updated_at FROM deltastream.sys."stores";`)
 
 var listEntityTmpl = util.ParseTemplate(`LIST ENTITIES 
 	{{ if ne (len .ParentPath) 0 }}

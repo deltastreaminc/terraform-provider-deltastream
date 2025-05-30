@@ -1,13 +1,5 @@
 provider "deltastream" {}
 
-variable "region" {
-  type = string
-}
-
-data "deltastream_region" "region" {
-  name = var.region
-}
-
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -26,7 +18,6 @@ variable "schema_registry_password" {
 
 resource "deltastream_schema_registry" "confluent" {
   name          = "Schema_registry_confluent_${random_id.suffix.hex}-东西"
-  access_region = data.deltastream_region.region.name
   confluent = {
     uris     = var.schema_registry_uris
     username = var.schema_registry_username
@@ -36,7 +27,6 @@ resource "deltastream_schema_registry" "confluent" {
 
 resource "deltastream_schema_registry" "confluent_nopwd" {
   name          = "schema_registry_confluent_nopwd${random_id.suffix.hex}"
-  access_region = data.deltastream_region.region.name
   confluent = {
     uris     = var.schema_registry_uris
   }

@@ -37,13 +37,12 @@ type EntityResource struct {
 }
 
 type EntityResourceData struct {
-	Store                types.String `tfsdk:"store"`
-	EntityPath           types.List   `tfsdk:"entity_path"`
-	KafkaProperties      types.Object `tfsdk:"kafka_properties"`
-	KinesisProperties    types.Object `tfsdk:"kinesis_properties"`
-	DatabricksProperties types.Object `tfsdk:"databricks_properties"`
-	SnowflakeProperties  types.Object `tfsdk:"snowflake_properties"`
-	PostgresProperties   types.Object `tfsdk:"postgres_properties"`
+	Store               types.String `tfsdk:"store"`
+	EntityPath          types.List   `tfsdk:"entity_path"`
+	KafkaProperties     types.Object `tfsdk:"kafka_properties"`
+	KinesisProperties   types.Object `tfsdk:"kinesis_properties"`
+	SnowflakeProperties types.Object `tfsdk:"snowflake_properties"`
+	PostgresProperties  types.Object `tfsdk:"postgres_properties"`
 }
 
 type KafkaStoreEntityResourceData struct {
@@ -89,18 +88,6 @@ type SnowflakeStoreEntityResourceData struct {
 func (SnowflakeStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"details": types.MapType{
-			ElemType: types.StringType,
-		},
-	}
-}
-
-type DatabricksStoreEntityResourceData struct {
-	Details types.Map `tfsdk:"details"`
-}
-
-func (DatabricksStoreEntityResourceData) AttributeTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"details": basetypes.MapType{
 			ElemType: types.StringType,
 		},
 	}
@@ -198,17 +185,6 @@ func (d *EntityResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			},
 			"snowflake_properties": schema.SingleNestedAttribute{
 				Description: "Snowflake properties",
-				Attributes: map[string]schema.Attribute{
-					"details": schema.MapAttribute{
-						ElementType: types.StringType,
-						Computed:    true,
-					},
-				},
-				Optional: true,
-				Computed: true,
-			},
-			"databricks_properties": schema.SingleNestedAttribute{
-				Description: "Databricks properties",
 				Attributes: map[string]schema.Attribute{
 					"details": schema.MapAttribute{
 						ElementType: types.StringType,
@@ -533,30 +509,6 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 		if diags.HasError() {
 			return
 		}
-	case "Databricks":
-		detail, err := rowsToMap(rows)
-		if err != nil {
-			diags.AddError("failed to read entity", err.Error())
-			return
-		}
-		var databricksProperties DatabricksStoreEntityResourceData
-		if !entity.DatabricksProperties.IsNull() && !entity.DatabricksProperties.IsUnknown() {
-			diags.Append(entity.DatabricksProperties.As(ctx, &databricksProperties, basetypes.ObjectAsOptions{})...)
-			if diags.HasError() {
-				return
-			}
-		}
-		var d diag.Diagnostics
-		databricksProperties.Details, d = types.MapValueFrom(ctx, types.StringType, detail)
-		diags.Append(d...)
-		if diags.HasError() {
-			return
-		}
-		entity.SnowflakeProperties, d = types.ObjectValueFrom(ctx, databricksProperties.AttributeTypes(), databricksProperties)
-		diags.Append(d...)
-		if diags.HasError() {
-			return
-		}
 	case "Postgres":
 		detail, err := rowsToMap(rows)
 		if err != nil {
@@ -591,9 +543,6 @@ func (d *EntityResource) updateComputed(ctx context.Context, entity *EntityResou
 	}
 	if entity.SnowflakeProperties.IsUnknown() {
 		entity.SnowflakeProperties = types.ObjectNull(SnowflakeStoreEntityResourceData{}.AttributeTypes())
-	}
-	if entity.DatabricksProperties.IsUnknown() {
-		entity.DatabricksProperties = types.ObjectNull(DatabricksStoreEntityResourceData{}.AttributeTypes())
 	}
 	if entity.PostgresProperties.IsUnknown() {
 		entity.PostgresProperties = types.ObjectNull(PostgresStoreEntityResourceData{}.AttributeTypes())

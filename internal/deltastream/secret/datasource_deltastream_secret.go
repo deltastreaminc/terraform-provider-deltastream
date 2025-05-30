@@ -42,14 +42,13 @@ func (d *SecretDataSource) Configure(ctx context.Context, req datasource.Configu
 }
 
 type SecretDatasourceData struct {
-	Name         types.String `tfsdk:"name"`
-	Type         types.String `tfsdk:"type"`
-	Description  types.String `tfsdk:"description"`
-	AccessRegion types.String `tfsdk:"access_region"`
-	Owner        types.String `tfsdk:"owner"`
-	Status       types.String `tfsdk:"status"`
-	CreatedAt    types.String `tfsdk:"created_at"`
-	UpdatedAt    types.String `tfsdk:"updated_at"`
+	Name        types.String `tfsdk:"name"`
+	Type        types.String `tfsdk:"type"`
+	Description types.String `tfsdk:"description"`
+	Owner       types.String `tfsdk:"owner"`
+	Status      types.String `tfsdk:"status"`
+	CreatedAt   types.String `tfsdk:"created_at"`
+	UpdatedAt   types.String `tfsdk:"updated_at"`
 }
 
 func (d *SecretDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
@@ -71,10 +70,6 @@ func getSecretSchema() schema.Schema {
 			},
 			"description": schema.StringAttribute{
 				Description: "Description of the Secret",
-				Computed:    true,
-			},
-			"access_region": schema.StringAttribute{
-				Description: "Region the secret will be used in",
 				Computed:    true,
 			},
 			"owner": schema.StringAttribute{
@@ -131,12 +126,11 @@ func (d *SecretDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	var stype string
 	var description *string
-	var region string
 	var owner string
 	var status string
 	var createdAt time.Time
 	var updatedAt time.Time
-	if err := row.Scan(&stype, &description, &region, &status, &owner, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&stype, &description, &status, &owner, &createdAt, &updatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			resp.Diagnostics.AddError("error loading secret", "secret not found")
 			return
@@ -147,7 +141,6 @@ func (d *SecretDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 
 	secret.Type = types.StringValue(stype)
 	secret.Description = types.StringPointerValue(description)
-	secret.AccessRegion = types.StringValue(region)
 	secret.Status = types.StringValue(status)
 	secret.Owner = types.StringValue(owner)
 	secret.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))

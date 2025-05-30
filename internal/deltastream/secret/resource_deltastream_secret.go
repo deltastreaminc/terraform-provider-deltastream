@@ -38,7 +38,6 @@ type SecretResourceData struct {
 	Name             types.String `tfsdk:"name"`
 	Type             types.String `tfsdk:"type"`
 	Description      types.String `tfsdk:"description"`
-	AccessRegion     types.String `tfsdk:"access_region"`
 	Owner            types.String `tfsdk:"owner"`
 	StringValue      types.String `tfsdk:"string_value"`
 	CustomProperties types.Map    `tfsdk:"custom_properties"`
@@ -64,10 +63,6 @@ func (d *SecretResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"description": schema.StringAttribute{
 				Description: "Description of the Secret",
 				Optional:    true,
-			},
-			"access_region": schema.StringAttribute{
-				Description: "Region the secret will be used in",
-				Required:    true,
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the Secret",
@@ -150,7 +145,6 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 	dsql, err := util.ExecTemplate(createSecretTmpl, map[string]any{
 		"Name":             secret.Name.ValueString(),
 		"Type":             secret.Type.ValueString(),
-		"AccessRegion":     secret.AccessRegion.ValueString(),
 		"Description":      secret.Description.ValueString(),
 		"SecretString":     secret.StringValue.ValueString(),
 		"CustomProperties": customProps,
@@ -213,12 +207,11 @@ func (d *SecretResource) updateComputed(ctx context.Context, conn *sql.Conn, sec
 
 	var kind string
 	var description *string
-	var region string
 	var status string
 	var owner string
 	var updatedAt time.Time
 	var createdAt time.Time
-	if err := row.Scan(&kind, &description, &region, &status, &owner, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&kind, &description, &status, &owner, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return secret, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSecret}
 		}

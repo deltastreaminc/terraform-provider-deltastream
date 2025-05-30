@@ -97,24 +97,22 @@ func (d *SecretsDataSource) Read(ctx context.Context, req datasource.ReadRequest
 		var name string
 		var stype string
 		var description *string
-		var region string
 		var owner string
 		var status string
 		var createdAt time.Time
 		var updatedAt time.Time
-		if err := rows.Scan(&name, &stype, &description, &region, &status, &owner, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&name, &stype, &description, &status, &owner, &createdAt, &updatedAt); err != nil {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read secret", err)
 			return
 		}
 		items = append(items, SecretDatasourceData{
-			Name:         types.StringValue(name),
-			Type:         types.StringValue(stype),
-			Description:  types.StringPointerValue(description),
-			AccessRegion: types.StringValue(region),
-			Owner:        types.StringValue(owner),
-			Status:       types.StringValue(status),
-			CreatedAt:    types.StringValue(createdAt.Format(time.RFC3339)),
-			UpdatedAt:    types.StringValue(updatedAt.Format(time.RFC3339)),
+			Name:        types.StringValue(name),
+			Type:        types.StringValue(stype),
+			Description: types.StringPointerValue(description),
+			Owner:       types.StringValue(owner),
+			Status:      types.StringValue(status),
+			CreatedAt:   types.StringValue(createdAt.Format(time.RFC3339)),
+			UpdatedAt:   types.StringValue(updatedAt.Format(time.RFC3339)),
 		})
 	}
 

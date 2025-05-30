@@ -1,5 +1,5 @@
-data "deltastream_relation" "pageviews" {
-  database = deltastream_database.example.name
-  schema   = "public"
-  name     = "pageviews"
+data "deltastream_object" "pageviews" {
+  database  = deltastream_database.example.name
+  namespace = "public"
+  name      = "pageviews"
 }

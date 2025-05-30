@@ -1,13 +1,5 @@
 provider "deltastream" {}
 
-variable "region" {
-  type = string
-}
-
-data "deltastream_region" "region" {
-  name = var.region
-}
-
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -26,7 +18,6 @@ variable "pub_msk_region" {
 
 resource "deltastream_store" "kafka_with_iam" {
   name          = "query_kinesis_kafka_source_${random_id.suffix.hex}"
-  access_region = data.deltastream_region.region.name
   kafka = {
     uris               = var.pub_msk_iam_uri
     sasl_hash_function = "AWS_MSK_IAM"
@@ -57,7 +48,6 @@ variable "kinesis_account_id" {
 
 resource "deltastream_store" "kinesis_creds" {
   name          = "query_kinesis_kinesis_sink_${random_id.suffix.hex}"
-  access_region = var.kinesis_region
   kinesis = {
     uris              = var.kinesis_url
     access_key_id     = var.kinesis_key
@@ -70,9 +60,9 @@ resource "deltastream_database" "db" {
   name = "db_${random_id.suffix.hex}"
 }
 
-resource "deltastream_relation" "pageviews" {
+resource "deltastream_object" "pageviews" {
   database = deltastream_database.db.name
-  schema   = "public"
+  namespace   = "public"
   store    = deltastream_store.kafka_with_iam.name
   sql      = <<EOF
     CREATE STREAM "Query_kinesis_pageviews_${random_id.suffix.hex}-东西" (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
@@ -87,9 +77,9 @@ resource "deltastream_entity" "pageviews_6" {
   }
 }
 
-resource "deltastream_relation" "pageviews_6" {
+resource "deltastream_object" "pageviews_6" {
   database = deltastream_database.db.name
-  schema   = "public"
+  namespace   = "public"
   store    = deltastream_store.kafka_with_iam.name
   sql      = <<EOF
     CREATE STREAM query_kinesis_pageviews_6_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='${deltastream_entity.pageviews_6.entity_path[0]}', 'value.format'='json');
@@ -97,10 +87,10 @@ resource "deltastream_relation" "pageviews_6" {
 }
 
 resource "deltastream_query" "insert_into_pageviews_6" {
-  source_relation_fqns = [deltastream_relation.pageviews.fqn]
-  sink_relation_fqn    = deltastream_relation.pageviews_6.fqn
+  source_relation_fqns = [deltastream_object.pageviews.fqn]
+  sink_relation_fqn    = deltastream_object.pageviews_6.fqn
   sql                  = <<EOF
-    INSERT INTO ${deltastream_relation.pageviews_6.fqn} SELECT * FROM ${deltastream_relation.pageviews.fqn} WHERE userid = 'User_6';
+    INSERT INTO ${deltastream_object.pageviews_6.fqn} SELECT * FROM ${deltastream_object.pageviews.fqn} WHERE userid = 'User_6';
   EOF
 }
 

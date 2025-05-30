@@ -50,7 +50,6 @@ type ConfluentCloudProperties struct {
 type SchemaRegistryResourceData struct {
 	Name           types.String `tfsdk:"name"`
 	Type           types.String `tfsdk:"type"`
-	AccessRegion   types.String `tfsdk:"access_region"`
 	Confluent      types.Object `tfsdk:"confluent"`
 	ConfluentCloud types.Object `tfsdk:"confluent_cloud"`
 	Owner          types.String `tfsdk:"owner"`
@@ -74,10 +73,6 @@ func (d *SchemaRegistryResource) Schema(ctx context.Context, req resource.Schema
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-			},
-			"access_region": schema.StringAttribute{
-				Description: "Region the schema registry will be used in",
-				Required:    true,
 			},
 			"confluent": schema.SingleNestedAttribute{
 				Description: "Confluent specific configuration",
@@ -198,7 +193,6 @@ func (d *SchemaRegistryResource) Create(ctx context.Context, req resource.Create
 	dsql, err := util.ExecTemplate(createSchemaRegistryTmpl, map[string]any{
 		"Name":           sr.Name.ValueString(),
 		"Type":           srtype,
-		"AccessRegion":   sr.AccessRegion.ValueString(),
 		"Confluent":      confluentProperties,
 		"ConfluentCloud": conflientCloudProperties,
 	})

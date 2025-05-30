@@ -26,7 +26,6 @@ variable "kinesis_account_id" {
 
 resource "deltastream_store" "kinesis_creds" {
   name          = "Store_kinesis_with_creds_${random_id.suffix.hex}-东西"
-  access_region = var.kinesis_region
   kinesis = {
     uris              = var.kinesis_url
     access_key_id     = var.kinesis_key

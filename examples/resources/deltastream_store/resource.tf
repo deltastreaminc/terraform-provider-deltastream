@@ -1,6 +1,5 @@
 resource "deltastream_store" "kafka_with_sasl" {
-  name          = "kafka_with_sasl_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "kafka_with_sasl_${random_id.suffix.hex}"
   kafka = {
     uris               = var.kafka_url
     sasl_hash_function = "PLAIN"
@@ -10,8 +9,7 @@ resource "deltastream_store" "kafka_with_sasl" {
 }
 
 resource "deltastream_store" "confluent_kafka_with_sasl" {
-  name          = "confluent_kafka_with_sasl_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "confluent_kafka_with_sasl_${random_id.suffix.hex}"
   confluent_kafka = {
     uris               = var.kafka_url
     sasl_hash_function = "PLAIN"
@@ -21,8 +19,7 @@ resource "deltastream_store" "confluent_kafka_with_sasl" {
 }
 
 resource "deltastream_store" "kafka_with_iam" {
-  name          = "kafka_with_iam_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "kafka_with_iam_${random_id.suffix.hex}"
   kafka = {
     uris               = var.msk_url
     sasl_hash_function = "AWS_MSK_IAM"
@@ -32,8 +29,7 @@ resource "deltastream_store" "kafka_with_iam" {
 }
 
 resource "deltastream_store" "kinesis_creds" {
-  name          = "kinesis_with_creds_${random_id.suffix.hex}"
-  access_region = var.kinesis_region
+  name = "kinesis_with_creds_${random_id.suffix.hex}"
   kinesis = {
     uris              = var.kinesis_url
     access_key_id     = var.kinesis_key
@@ -41,23 +37,8 @@ resource "deltastream_store" "kinesis_creds" {
   }
 }
 
-resource "deltastream_store" "databricks" {
-  name          = "databricks_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
-  databricks = {
-    uris              = var.databricks_uri
-    app_token         = var.databricks_app_token
-    warehouse_id      = var.databricks_warehouse_id
-    access_key_id     = var.databricks_access_key_id
-    secret_access_key = var.databricks_secret_access_key
-    cloud_s3_bucket   = var.databricks_bucket
-    cloud_region      = var.databricks_bucket_region
-  }
-}
-
 resource "deltastream_store" "snowflake" {
-  name          = "snowflake_${random_id.suffix.hex}"
-  access_region = "AWS us-west-2"
+  name = "snowflake_${random_id.suffix.hex}"
   snowflake = {
     uris                  = var.snowflake_uris
     account_id            = var.snowflake_account_id
@@ -72,7 +53,6 @@ resource "deltastream_store" "snowflake" {
 
 # resource "deltastream_store" "postgres" {
 #   name          = "kinesis_with_creds_${random_id.suffix.hex}"
-#   access_region = "AWS us-west-2"
 #   postgres = {
 #     uris = var.postgres_uris
 #     username = var.postgres_username
