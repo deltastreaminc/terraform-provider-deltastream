@@ -6,7 +6,7 @@
             "type": "go",
             "request": "launch",
             "mode": "test",
-            "program": "/home/kraman/deltastream/terraform-provider-deltastream/internal/provider/resource_deltastream_database_test.go",
+            "program": "/home/kraman/deltastream/terraform-provider-deltastream/provider/resource_deltastream_database_test.go",
             "env": {
                 "TF_ACC": "1",
                 "DELTASTREAM_CRED_FILE": "${workspaceFolder}/test-env.yaml",

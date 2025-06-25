@@ -8,7 +8,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider"
+	"github.com/deltastreaminc/terraform-provider-deltastream/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
