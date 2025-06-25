@@ -26,10 +26,9 @@ import (
 
 	gods "github.com/deltastreaminc/go-deltastream"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/database"
+	dsnamespace "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/namespace"
+	dsobject "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/object"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/query"
-	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/region"
-	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/relation"
-	dsschema "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema"
 	schemaregistry "github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/schema_registry"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/secret"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/deltastream/store"
@@ -68,7 +67,7 @@ func providerSchema() schema.Schema {
 				Optional:    true,
 			},
 			"server": schema.StringAttribute{
-				Description: "Server. Can also be set via the DELTASTREAM_SERVER environment variable. Default: https://api.deltastream.io/v2",
+				Description: "Server. Can also be set via the DELTASTREAM_SERVER environment variable",
 				Optional:    true,
 			},
 			"insecure_skip_verify": schema.BoolAttribute{
@@ -83,7 +82,6 @@ func providerSchema() schema.Schema {
 			"role": schema.StringAttribute{
 				Description: "DeltaStream role to use for managing resources and queries. Can also be set via the DELTASTREAM_ROLE environment variable. Default: sysadmin",
 				Optional:    true,
-				Validators:  util.IdentifierValidators,
 			},
 		},
 	}
@@ -243,11 +241,11 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 func (p *DeltaStreamProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		database.NewDatabaseResource,
-		dsschema.NewSchemaResource,
+		dsnamespace.NewNamespaceResource,
 		store.NewStoreResource,
 		store.NewEntityResource,
 		secret.NewSecretResource,
-		relation.NewRelationResource,
+		dsobject.NewObjectResource,
 		query.NewQueryResource,
 		schemaregistry.NewSchemaRegistryResource,
 	}
@@ -258,19 +256,16 @@ func (p *DeltaStreamProvider) DataSources(ctx context.Context) []func() datasour
 		database.NewDatabaseDataSource,
 		database.NewDatabasesDataSource,
 
-		dsschema.NewSchemaDataSource,
-		dsschema.NewSchemasDataSource,
-
-		region.NewRegionDataSource,
-		region.NewSecretsDataSources,
+		dsnamespace.NewNamespaceDataSource,
+		dsnamespace.NewNamespacesDataSource,
 
 		store.NewStoreDataSource,
 		store.NewStoresDataSource,
 		store.NewEntitiesDataSource,
 		store.NewEntityDataDataSource,
 
-		relation.NewRelationDataSource,
-		relation.NewRelationsDataSource,
+		dsobject.NewObjectDataSource,
+		dsobject.NewObjectsDataSource,
 
 		secret.NewSecretDataSource,
 		secret.NewSecretsDataSources,

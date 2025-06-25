@@ -94,7 +94,6 @@ func (d *QueryResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Description: "Owning role of the query",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"state": schema.StringAttribute{
 				Description: "State of the Relation",
@@ -151,6 +150,7 @@ type artifactDDL struct {
 	Name    string `json:"name"`
 	Command string `json:"command"`
 	Summary string `json:"summary"`
+	Path    string `json:"path"`
 }
 
 // Create implements resource.Resource.
@@ -175,7 +175,14 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 	defer conn.Close()
 
-	row := conn.QueryRowContext(ctx, "DESCRIBE "+query.Sql.ValueString())
+	dsql, err := util.ExecTemplate(describeQueryTmpl, map[string]any{
+		"SQL": query.Sql.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	row := conn.QueryRowContext(ctx, dsql)
 	var kind string
 	var descJson string
 	if err := row.Scan(&kind, &descJson); err != nil {
@@ -199,7 +206,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	if d.cfg.Organization+"."+strings.TrimSpace(query.SinkRelation.ValueString()) != statementPlan.Sink.Fqn {
+	if `"`+d.cfg.Organization+`".`+strings.TrimSpace(query.SinkRelation.ValueString()) != statementPlan.Sink.Fqn {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("sink relation mismatch %s != %s", d.cfg.Organization+"."+query.SinkRelation.ValueString(), statementPlan.Sink.Fqn))
 		return
 	}
@@ -212,7 +219,7 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 	for _, source := range statementPlan.Sources {
 		found := false
 		for _, sourceRelation := range sourceRelations {
-			if d.cfg.Organization+"."+strings.TrimSpace(sourceRelation) == source.Fqn {
+			if `"`+d.cfg.Organization+`".`+strings.TrimSpace(sourceRelation) == source.Fqn {
 				found = true
 				break
 			}
@@ -225,17 +232,17 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	artifactDDL := artifactDDL{}
 	row = conn.QueryRowContext(ctx, query.Sql.ValueString())
-	if err := row.Scan(&artifactDDL.Type, &artifactDDL.Name, &artifactDDL.Command, &artifactDDL.Summary); err != nil {
+	if err := row.Scan(&artifactDDL.Type, &artifactDDL.Name, &artifactDDL.Command, &artifactDDL.Summary, &artifactDDL.Path); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to launch query", err)
 		return
 	}
 	query.QueryID = types.StringValue(artifactDDL.Name)
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*10, retry.NewConstant(time.Second*15)), func(ctx context.Context) (err error) {
-		query, err = d.updateComputed(ctx, conn, query, false)
+		query, err = d.updateComputed(ctx, conn, query)
 		if err != nil {
 			var godsErr gods.ErrSQLError
-			if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidQuery {
+			if errors.As(err, &godsErr) && godsErr.SQLCode != gods.SqlStateInvalidQuery {
 				return nil
 			}
 			return retry.RetryableError(err)
@@ -249,10 +256,18 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 			return fmt.Errorf("query errored while starting")
 		}
 
-		return retry.RetryableError(fmt.Errorf("relation not yet created"))
+		return retry.RetryableError(fmt.Errorf("query not running"))
 	}); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "query failed to start", err)
-		if _, derr := conn.ExecContext(ctx, fmt.Sprintf(`TERMINATE QUERY %s;`, query.QueryID.ValueString())); derr != nil {
+
+		dsql, derr := util.ExecTemplate(lookupQuery, map[string]any{
+			"ID": query.QueryID.ValueString(),
+		})
+		if derr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", derr)
+			return
+		}
+		if _, derr := conn.ExecContext(ctx, dsql); derr != nil {
 			tflog.Error(ctx, "failed to clean up schema", map[string]any{
 				"Query ID": query.QueryID.ValueString(),
 				"error":    derr.Error(),
@@ -265,46 +280,41 @@ func (d *QueryResource) Create(ctx context.Context, req resource.CreateRequest, 
 	resp.Diagnostics.Append(resp.State.Set(ctx, query)...)
 }
 
-func (d *QueryResource) updateComputed(ctx context.Context, conn *sql.Conn, rel QueryResourceData, includeStopped bool) (QueryResourceData, error) {
-	sql := `LIST QUERIES;`
-	if includeStopped {
-		sql = `LIST QUERIES WITH ('all');`
-	}
-
-	rows, err := conn.QueryContext(ctx, sql)
+func (d *QueryResource) updateComputed(ctx context.Context, conn *sql.Conn, query QueryResourceData) (QueryResourceData, error) {
+	dsql, err := util.ExecTemplate(lookupQuery, map[string]any{
+		"ID": query.QueryID.ValueString(),
+	})
 	if err != nil {
-		return rel, err
+		return query, fmt.Errorf("failed to generate SQL: %w", err)
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var (
-			id            string
-			name          string
-			version       int64
-			intendedState string
-			actualState   string
-			query         string
-			owner         string
-			createdAt     time.Time
-			updatedAt     time.Time
-		)
-
-		if err := rows.Scan(&id, &name, &version, &intendedState, &actualState, &query, &owner, &createdAt, &updatedAt); err != nil {
-			return rel, err
-		}
-		if id == rel.QueryID.ValueString() {
-			rel.QueryID = types.StringValue(id)
-			rel.Name = types.StringValue(name)
-			rel.Version = types.Int64Value(version)
-			rel.State = types.StringValue(actualState)
-			rel.Owner = types.StringValue(owner)
-			rel.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			rel.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			return rel, nil
-		}
+	row := conn.QueryRowContext(ctx, dsql)
+	if err = row.Err(); err != nil {
+		return query, err
 	}
-	return rel, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidQuery}
+
+	var (
+		name          *string
+		version       *int64
+		intendedState string
+		actualState   string
+		owner         string
+		createdAt     time.Time
+		updatedAt     time.Time
+	)
+
+	if err := row.Scan(&name, &version, &intendedState, &actualState, &owner, &createdAt, &updatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return query, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidQuery}
+		}
+		return query, err
+	}
+	query.Name = types.StringPointerValue(name)
+	query.Version = types.Int64PointerValue(version)
+	query.State = types.StringValue(actualState)
+	query.Owner = types.StringValue(owner)
+	query.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	query.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return query, nil
 }
 
 func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -327,21 +337,30 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`TERMINATE QUERY %s;`, query.QueryID.ValueString())); err != nil {
-		var sqlErr gods.ErrSQLError
-		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidQuery {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to terminate query", err)
+	if query.State.ValueString() != "terminated" && query.State.ValueString() != "terminate_requested" {
+		dsql, err := util.ExecTemplate(terminateQuery, map[string]any{
+			"ID": query.QueryID.ValueString(),
+		})
+		if err != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
 			return
+		}
+		if _, err := conn.ExecContext(ctx, dsql); err != nil {
+			var sqlErr gods.ErrSQLError
+			if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidQuery {
+				resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to terminate query", err)
+				return
+			}
 		}
 	}
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
-		query, err = d.updateComputed(ctx, conn, query, true)
+		query, err = d.updateComputed(ctx, conn, query)
 		if err != nil {
 			return err
 		}
 
-		if query.State.ValueString() == "stopped" {
+		if query.State.ValueString() == "terminated" {
 			return nil
 		}
 
@@ -352,29 +371,26 @@ func (d *QueryResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*10, retry.NewExponential(time.Second)), func(ctx context.Context) error {
-		sql := fmt.Sprintf(`DESCRIBE QUERY STATE %s;`, query.QueryID.ValueString())
-		rows, err := conn.QueryContext(ctx, sql)
+		dsql, err := util.ExecTemplate(lookupQueryState, map[string]any{
+			"ID": query.QueryID.ValueString(),
+		})
 		if err != nil {
+			return fmt.Errorf("failed to generate SQL: %w", err)
+		}
+
+		row := conn.QueryRowContext(ctx, dsql)
+		if err = row.Err(); err != nil {
 			return retry.RetryableError(fmt.Errorf("unable to lookup query state: %w", err))
 		}
-		defer rows.Close()
 
-		stateReady := true
-		for rows.Next() {
-			var (
-				discard any
-				state   string
-			)
-
-			if err := rows.Scan(&discard, &discard, &discard, &state); err != nil {
-				return fmt.Errorf("unable to read query state: %w", err)
-			}
-			stateReady = stateReady && (state == "completed")
+		var state string
+		if err := row.Scan(&state); err != nil {
+			return fmt.Errorf("unable to read query state: %w", err)
 		}
-
-		if stateReady {
+		if state == "terminated" {
 			return nil
 		}
+
 		return retry.RetryableError(fmt.Errorf("state information not available"))
 	}); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to terminate query", err)
@@ -409,7 +425,7 @@ func (d *QueryResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	}
 	defer conn.Close()
 
-	query, err = d.updateComputed(ctx, conn, query, true)
+	query, err = d.updateComputed(ctx, conn, query)
 	if err != nil {
 		var godsErr gods.ErrSQLError
 		if errors.As(err, &godsErr) && godsErr.SQLCode == gods.SqlStateInvalidQuery {

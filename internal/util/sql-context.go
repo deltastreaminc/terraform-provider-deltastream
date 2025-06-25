@@ -14,7 +14,7 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-func SetSqlContext(ctx context.Context, conn *sql.Conn, dbName, schemaName, storeName *string) error {
+func SetSqlContext(ctx context.Context, conn *sql.Conn, dbName, schemaName, storeName, computePoolName *string) error {
 	conn.Raw(func(driverConn interface{}) error {
 		rsctx := driverConn.(*gods.Conn).GetContext()
 		if dbName != nil {
@@ -25,6 +25,9 @@ func SetSqlContext(ctx context.Context, conn *sql.Conn, dbName, schemaName, stor
 		}
 		if storeName != nil {
 			rsctx.StoreName = storeName
+		}
+		if computePoolName != nil {
+			rsctx.ComputePoolName = computePoolName
 		}
 		driverConn.(*gods.Conn).SetContext(rsctx)
 		return nil

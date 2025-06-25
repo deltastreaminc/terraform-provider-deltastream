@@ -4,12 +4,10 @@
 package database
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -48,13 +46,11 @@ func (d *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 			"name": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the Database",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Creation date of the Database",
@@ -83,8 +79,6 @@ func (d *DatabaseResource) Metadata(ctx context.Context, req resource.MetadataRe
 	resp.TypeName = req.ProviderTypeName + "_database"
 }
 
-const createStatement = `CREATE DATABASE "{{.Name}}";`
-
 // Create implements resource.Resource.
 func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var database DatabaseResourceData
@@ -107,11 +101,14 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	}
 	defer conn.Close()
 
-	b := bytes.NewBuffer(nil)
-	template.Must(template.New("").Parse(createStatement)).Execute(b, map[string]any{
-		"Name": database.Name.ValueString(),
+	dsql, err := util.ExecTemplate(createDatabaseTmpl, map[string]any{
+		"DatabaseName": database.Name.ValueString(),
 	})
-	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create database", err)
 		return
 	}
@@ -127,7 +124,14 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		}
 		return nil
 	}); err != nil {
-		if _, derr := conn.ExecContext(ctx, `DROP DATABASE "`+database.Name.ValueString()+`";`); derr != nil {
+		dsql, derr := util.ExecTemplate(dropDatabaseTmpl, map[string]any{
+			"DatabaseName": database.Name.ValueString(),
+		})
+		if derr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", derr)
+			return
+		}
+		if _, derr := conn.ExecContext(ctx, dsql); derr != nil {
 			tflog.Error(ctx, "failed to clean up database", map[string]any{
 				"name":  database.Name.ValueString(),
 				"error": derr.Error(),
@@ -141,29 +145,29 @@ func (d *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(resp.State.Set(ctx, database)...)
 }
 
-func (d *DatabaseResource) updateComputed(ctx context.Context, conn *sql.Conn, db DatabaseResourceData) (DatabaseResourceData, error) {
-	rows, err := conn.QueryContext(ctx, `LIST DATABASES;`)
+func (d *DatabaseResource) updateComputed(ctx context.Context, conn *sql.Conn, database DatabaseResourceData) (DatabaseResourceData, error) {
+	dsql, err := util.ExecTemplate(lookupDatabaseTmpl, map[string]any{
+		"DatabaseName": database.Name.ValueString(),
+	})
 	if err != nil {
-		return db, err
+		return database, fmt.Errorf("failed to generate SQL: %w", err)
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var discard any
-		var name string
-		var owner string
-		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			return db, err
-		}
-		if name == db.Name.ValueString() {
-			db.Owner = types.StringValue(owner)
-			db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			return db, nil
-		}
+	row := conn.QueryRowContext(ctx, dsql)
+	if err := row.Err(); err != nil {
+		return database, err
 	}
 
-	return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
+	var owner string
+	var createdAt time.Time
+	if err := row.Scan(&owner, &createdAt); err != nil {
+		if err == sql.ErrNoRows {
+			return DatabaseResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidDatabase}
+		}
+		return database, err
+	}
+	database.Owner = types.StringValue(owner)
+	database.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	return database, nil
 }
 
 func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -186,12 +190,17 @@ func (d *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, database.Name.ValueString())); err != nil {
-		var sqlErr gods.ErrSQLError
-		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
-			return
+	if err = retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) error {
+		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP DATABASE "%s";`, util.EscapeIdentifier(database.Name.ValueString()))); err != nil {
+			var sqlErr gods.ErrSQLError
+			if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidDatabase {
+				return retry.RetryableError(err)
+			}
 		}
+		return nil
+	}); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to delete database", err)
+		return
 	}
 	tflog.Info(ctx, "Database deleted", map[string]any{"name": database.Name.ValueString()})
 }

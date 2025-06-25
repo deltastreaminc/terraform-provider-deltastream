@@ -5,6 +5,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -54,13 +55,11 @@ func getDatabaseSchema() schema.Schema {
 			"name": schema.StringAttribute{
 				Description: "Name of the Database",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the Database",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Creation date of the Database",
@@ -89,35 +88,31 @@ func (d *DatabaseDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST DATABASES;`)
+	dsql, err := util.ExecTemplate(lookupDatabaseTmpl, map[string]any{
+		"DatabaseName": database.Name.ValueString(),
+	})
 	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list databases", err)
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
 		return
 	}
-	defer rows.Close()
+	row := conn.QueryRowContext(ctx, dsql)
+	if err := row.Err(); err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read database", err)
+		return
+	}
 
-	found := false
-	for rows.Next() {
-		var discard any
-		var name string
-		var owner string
-		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &owner, &createdAt); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read database", err)
+	var owner string
+	var createdAt time.Time
+	if err := row.Scan(&owner, &createdAt); err != nil {
+		if err == sql.ErrNoRows {
+			resp.Diagnostics.AddError("error loading database", "database not found")
 			return
 		}
-		if name == database.Name.ValueString() {
-			found = true
-			database.Owner = types.StringValue(owner)
-			database.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			break
-		}
-	}
-
-	if !found {
-		resp.Diagnostics.AddError("error loading database", "database not found")
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read database", err)
 		return
 	}
+	database.Owner = types.StringValue(owner)
+	database.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &database)...)
 }

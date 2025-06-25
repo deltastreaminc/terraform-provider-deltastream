@@ -29,13 +29,12 @@ type StoresDataSource struct {
 }
 
 type StoresDatasourceDataItem struct {
-	Name         types.String `tfsdk:"name"`
-	AccessRegion types.String `tfsdk:"access_region"`
-	Type         types.String `tfsdk:"type"`
-	Owner        types.String `tfsdk:"owner"`
-	State        types.String `tfsdk:"state"`
-	UpdatedAt    types.String `tfsdk:"updated_at"`
-	CreatedAt    types.String `tfsdk:"created_at"`
+	Name      types.String `tfsdk:"name"`
+	Type      types.String `tfsdk:"type"`
+	Owner     types.String `tfsdk:"owner"`
+	State     types.String `tfsdk:"state"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
+	CreatedAt types.String `tfsdk:"created_at"`
 }
 
 type StoresDatasourceData struct {
@@ -72,10 +71,6 @@ func (d *StoresDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 						},
 						"type": schema.StringAttribute{
 							Description: "Type of the Store",
-							Computed:    true,
-						},
-						"access_region": schema.StringAttribute{
-							Description: "Specifies the region of the Store.",
 							Computed:    true,
 						},
 						"state": schema.StringAttribute{
@@ -120,35 +115,36 @@ func (d *StoresDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST STORES;`)
+	dsql, err := util.ExecTemplate(listStoresTmpl, map[string]any{})
 	if err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list store", err)
-		return
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+	}
+	rows, err := conn.QueryContext(ctx, dsql)
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
 	}
 	defer rows.Close()
 
+	var name string
+	var kind string
+	var state string
+	var owner string
+	var createdAt time.Time
+	var updatedAt time.Time
+
 	items := []StoresDatasourceDataItem{}
 	for rows.Next() {
-		var discard any
-		var name string
-		var accessRegion string
-		var kind string
-		var state string
-		var owner string
-		var createdAt time.Time
-		var updatedAt time.Time
-		if err := rows.Scan(&name, &kind, &accessRegion, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&name, &kind, &state, &owner, &createdAt, &updatedAt); err != nil {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read stores", err)
 			return
 		}
 		items = append(items, StoresDatasourceDataItem{
-			Name:         types.StringValue(name),
-			Type:         types.StringValue(kind),
-			AccessRegion: types.StringValue(accessRegion),
-			State:        types.StringValue(state),
-			Owner:        types.StringValue(owner),
-			CreatedAt:    types.StringValue(createdAt.Format(time.RFC3339)),
-			UpdatedAt:    types.StringValue(createdAt.Format(time.RFC3339)),
+			Name:      types.StringValue(name),
+			Type:      types.StringValue(kind),
+			State:     types.StringValue(state),
+			Owner:     types.StringValue(owner),
+			CreatedAt: types.StringValue(createdAt.Format(time.RFC3339)),
+			UpdatedAt: types.StringValue(createdAt.Format(time.RFC3339)),
 		})
 	}
 

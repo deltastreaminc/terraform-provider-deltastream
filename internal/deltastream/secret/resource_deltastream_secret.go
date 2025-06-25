@@ -4,12 +4,10 @@
 package secret
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -40,7 +38,6 @@ type SecretResourceData struct {
 	Name             types.String `tfsdk:"name"`
 	Type             types.String `tfsdk:"type"`
 	Description      types.String `tfsdk:"description"`
-	AccessRegion     types.String `tfsdk:"access_region"`
 	Owner            types.String `tfsdk:"owner"`
 	StringValue      types.String `tfsdk:"string_value"`
 	CustomProperties types.Map    `tfsdk:"custom_properties"`
@@ -57,7 +54,6 @@ func (d *SecretResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"name": schema.StringAttribute{
 				Description: "Name of the Secret",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"type": schema.StringAttribute{
 				Description: "Secret type. (Valid values: generic_string)",
@@ -68,15 +64,10 @@ func (d *SecretResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Description: "Description of the Secret",
 				Optional:    true,
 			},
-			"access_region": schema.StringAttribute{
-				Description: "Region the secret will be used in",
-				Required:    true,
-			},
 			"owner": schema.StringAttribute{
 				Description: "Owning role of the Secret",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"string_value": schema.StringAttribute{
 				Description: "Secret value",
@@ -121,14 +112,6 @@ func (d *SecretResource) Metadata(ctx context.Context, req resource.MetadataRequ
 	resp.TypeName = req.ProviderTypeName + "_secret"
 }
 
-const createStatement = `CREATE SECRET "{{.Name}}" WITH( 
-	'type' = {{.Type}}, 
-	{{ if .Description }}'description' = '{{.Description}}',{{ end }}
-	{{ if .SecretString }}'secret_string' = '{{.SecretString}}',{{ end }}
-	{{ range $k, $v := .CustomProperties }}'{{$k}}' = '{{$v}}',{{ end }}
-	'access_region' = "{{.AccessRegion}}"
-);`
-
 // Create implements resource.Resource.
 func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var secret SecretResourceData
@@ -159,16 +142,18 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 	}
 
-	b := bytes.NewBuffer(nil)
-	template.Must(template.New("").Parse(createStatement)).Execute(b, map[string]any{
+	dsql, err := util.ExecTemplate(createSecretTmpl, map[string]any{
 		"Name":             secret.Name.ValueString(),
 		"Type":             secret.Type.ValueString(),
-		"AccessRegion":     secret.AccessRegion.ValueString(),
 		"Description":      secret.Description.ValueString(),
 		"SecretString":     secret.StringValue.ValueString(),
 		"CustomProperties": customProps,
 	})
-	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create secret", err)
 		return
 	}
@@ -187,7 +172,14 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 		}
 		return nil
 	}); err != nil {
-		if _, derr := conn.ExecContext(ctx, `DROP SECRET "`+secret.Name.ValueString()+`";`); derr != nil {
+		dsql, derr := util.ExecTemplate(dropSecretTmpl, map[string]any{
+			"Name": secret.Name.ValueString(),
+		})
+		if derr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", derr)
+			return
+		}
+		if _, derr := conn.ExecContext(ctx, dsql); derr != nil {
 			tflog.Error(ctx, "failed to clean up secret", map[string]any{
 				"name":  secret.Name.ValueString(),
 				"error": derr.Error(),
@@ -201,32 +193,35 @@ func (d *SecretResource) Create(ctx context.Context, req resource.CreateRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, secret)...)
 }
 
-func (d *SecretResource) updateComputed(ctx context.Context, conn *sql.Conn, db SecretResourceData) (SecretResourceData, error) {
-	rows, err := conn.QueryContext(ctx, `LIST SECRETS;`)
+func (d *SecretResource) updateComputed(ctx context.Context, conn *sql.Conn, secret SecretResourceData) (SecretResourceData, error) {
+	dsql, err := util.ExecTemplate(lookupSecretTmpl, map[string]any{
+		"Name": secret.Name.ValueString(),
+	})
 	if err != nil {
-		return db, err
+		return secret, fmt.Errorf("failed to generate SQL: %w", err)
 	}
-	defer rows.Close()
+	row := conn.QueryRowContext(ctx, dsql)
+	if err = row.Err(); err != nil {
+		return secret, err
+	}
 
-	for rows.Next() {
-		var discard any
-		var name string
-		var status string
-		var owner string
-		var updatedAt time.Time
-		var createdAt time.Time
-		if err := rows.Scan(&name, &discard, &discard, &discard, &status, &owner, &createdAt, &updatedAt); err != nil {
-			return db, err
+	var kind string
+	var description *string
+	var status string
+	var owner string
+	var updatedAt time.Time
+	var createdAt time.Time
+	if err := row.Scan(&kind, &description, &status, &owner, &createdAt, &updatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return secret, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSecret}
 		}
-		if name == db.Name.ValueString() {
-			db.Status = types.StringValue(status)
-			db.Owner = types.StringValue(owner)
-			db.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			db.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
-			return db, nil
-		}
+		return secret, err
 	}
-	return SecretResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSecret}
+	secret.Status = types.StringValue(status)
+	secret.Owner = types.StringValue(owner)
+	secret.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	secret.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
+	return secret, nil
 }
 
 func (d *SecretResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

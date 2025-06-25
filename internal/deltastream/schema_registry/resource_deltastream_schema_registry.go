@@ -4,12 +4,10 @@
 package schemaregistry
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -38,9 +36,9 @@ type SchemaRegistryResource struct {
 }
 
 type ConfluentProperties struct {
-	Uris       types.String `tfsdk:"uris"`
-	Username   types.String `tfsdk:"username"`
-	Properties types.String `tfsdk:"password"`
+	Uris     types.String `tfsdk:"uris"`
+	Username types.String `tfsdk:"username"`
+	Password types.String `tfsdk:"password"`
 }
 
 type ConfluentCloudProperties struct {
@@ -52,7 +50,6 @@ type ConfluentCloudProperties struct {
 type SchemaRegistryResourceData struct {
 	Name           types.String `tfsdk:"name"`
 	Type           types.String `tfsdk:"type"`
-	AccessRegion   types.String `tfsdk:"access_region"`
 	Confluent      types.Object `tfsdk:"confluent"`
 	ConfluentCloud types.Object `tfsdk:"confluent_cloud"`
 	Owner          types.String `tfsdk:"owner"`
@@ -69,7 +66,6 @@ func (d *SchemaRegistryResource) Schema(ctx context.Context, req resource.Schema
 			"name": schema.StringAttribute{
 				Description: "Name of the schema registry",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"type": schema.StringAttribute{
 				Description: "Type of the schema registry",
@@ -77,10 +73,6 @@ func (d *SchemaRegistryResource) Schema(ctx context.Context, req resource.Schema
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
-			},
-			"access_region": schema.StringAttribute{
-				Description: "Region the schema registry will be used in",
-				Required:    true,
 			},
 			"confluent": schema.SingleNestedAttribute{
 				Description: "Confluent specific configuration",
@@ -126,7 +118,6 @@ func (d *SchemaRegistryResource) Schema(ctx context.Context, req resource.Schema
 				Description: "Owning role of the schema registry",
 				Optional:    true,
 				Computed:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"state": schema.StringAttribute{
 				Description: "Status of the schema registry",
@@ -161,17 +152,6 @@ func (d *SchemaRegistryResource) Configure(ctx context.Context, req resource.Con
 func (d *SchemaRegistryResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_schema_registry"
 }
-
-const createStatement = `CREATE SCHEMA_REGISTRY "{{.Name}}" WITH(
-	{{- if eq .Type "CONFLUENT" }}
-		'type' = CONFLUENT, 'access_region' = "{{.AccessRegion}}", 'uris' = '{{.Confluent.Uris.ValueString}}',
-		'confluent.username' = '{{.Confluent.Username.ValueString}}', 'confluent.password' = '{{.Confluent.Password.ValueString}}'
-	{{- end }}
-	{{- if eq .Type "CONFLUENT_CLOUD" }}
-		'type' = CONFLUENT_CLOUD, 'access_region' = "{{.AccessRegion}}", 'uris' = '{{.ConfluentCloud.Uris.ValueString}}',
-		'confluent_cloud.key' = '{{.ConfluentCloud.Key.ValueString}}', 'confluent_cloud.secret' = '{{.ConfluentCloud.Secret.ValueString}}'
-	{{- end }}
-);`
 
 // Create implements resource.Resource.
 func (d *SchemaRegistryResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -210,15 +190,17 @@ func (d *SchemaRegistryResource) Create(ctx context.Context, req resource.Create
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "invalid schema registry", fmt.Errorf("must specify atleast one schema registry type properties"))
 	}
 
-	b := bytes.NewBuffer(nil)
-	template.Must(template.New("").Parse(createStatement)).Execute(b, map[string]any{
+	dsql, err := util.ExecTemplate(createSchemaRegistryTmpl, map[string]any{
 		"Name":           sr.Name.ValueString(),
 		"Type":           srtype,
-		"AccessRegion":   sr.AccessRegion.ValueString(),
 		"Confluent":      confluentProperties,
 		"ConfluentCloud": conflientCloudProperties,
 	})
-	if _, err := conn.ExecContext(ctx, b.String()); err != nil {
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create schema registry", err)
 		return
 	}
@@ -237,7 +219,14 @@ func (d *SchemaRegistryResource) Create(ctx context.Context, req resource.Create
 		}
 		return nil
 	}); err != nil {
-		if _, derr := conn.ExecContext(ctx, `DROP SCHEMA_REGISTRY "`+sr.Name.ValueString()+`";`); derr != nil {
+		dsql, derr := util.ExecTemplate(dropSchemaRegistryTmpl, map[string]any{
+			"Name": sr.Name.ValueString(),
+		})
+		if derr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", derr)
+			return
+		}
+		if _, derr := conn.ExecContext(ctx, dsql); derr != nil {
 			tflog.Error(ctx, "failed to clean up schema registry", map[string]any{
 				"name":  sr.Name.ValueString(),
 				"error": derr.Error(),
@@ -252,33 +241,34 @@ func (d *SchemaRegistryResource) Create(ctx context.Context, req resource.Create
 }
 
 func (d *SchemaRegistryResource) updateComputed(ctx context.Context, conn *sql.Conn, sr SchemaRegistryResourceData) (SchemaRegistryResourceData, error) {
-	rows, err := conn.QueryContext(ctx, `LIST SCHEMA_REGISTRIES;`)
+	dsql, err := util.ExecTemplate(lookupSchemaRegistryTmpl, map[string]any{
+		"Name": sr.Name.ValueString(),
+	})
 	if err != nil {
+		return sr, fmt.Errorf("failed to generate SQL: %w", err)
+	}
+	row := conn.QueryRowContext(ctx, dsql)
+	if err = row.Err(); err != nil {
 		return sr, err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var discard any
-		var name string
-		var srtype string
-		var state string
-		var owner string
-		var updatedAt time.Time
-		var createdAt time.Time
-		if err := rows.Scan(&name, &srtype, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
-			return sr, err
+	var srtype string
+	var state string
+	var owner string
+	var updatedAt time.Time
+	var createdAt time.Time
+	if err := row.Scan(&srtype, &state, &owner, &createdAt, &updatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sr, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSchemaRegistry}
 		}
-		if name == sr.Name.ValueString() {
-			sr.State = types.StringValue(state)
-			sr.Type = types.StringValue(srtype)
-			sr.Owner = types.StringValue(owner)
-			sr.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			sr.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
-			return sr, nil
-		}
+		return sr, err
 	}
-	return SchemaRegistryResourceData{}, &gods.ErrSQLError{SQLCode: gods.SqlStateInvalidSchemaRegistry}
+	sr.State = types.StringValue(state)
+	sr.Type = types.StringValue(srtype)
+	sr.Owner = types.StringValue(owner)
+	sr.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	sr.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
+	return sr, nil
 }
 
 func (d *SchemaRegistryResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -301,7 +291,14 @@ func (d *SchemaRegistryResource) Delete(ctx context.Context, req resource.Delete
 	}
 	defer conn.Close()
 
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf(`DROP SCHEMA_REGISTRY "%s";`, sr.Name.ValueString())); err != nil {
+	dsql, err := util.ExecTemplate(dropSchemaRegistryTmpl, map[string]any{
+		"Name": sr.Name.ValueString(),
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	if _, err := conn.ExecContext(ctx, dsql); err != nil {
 		var sqlErr gods.ErrSQLError
 		if !errors.As(err, &sqlErr) || sqlErr.SQLCode != gods.SqlStateInvalidSchemaRegistry {
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to drop schema registry", err)

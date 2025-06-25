@@ -1,13 +1,5 @@
 provider "deltastream" {}
 
-variable "region" {
-  type = string
-}
-
-data "deltastream_region" "region" {
-  name = var.region
-}
-
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -45,8 +37,7 @@ variable "snowflake_client_key_passphrase" {
 }
 
 resource "deltastream_store" "snowflake" {
-  name          = "store_snowflake_${random_id.suffix.hex}"
-  access_region = data.deltastream_region.region.name
+  name          = "Store_snowflake_${random_id.suffix.hex}-东西"
   snowflake = {
     uris                  = var.snowflake_uris
     account_id            = var.snowflake_account_id

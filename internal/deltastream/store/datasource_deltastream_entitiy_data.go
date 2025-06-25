@@ -4,11 +4,9 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"text/template"
 
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/provider/config"
 	"github.com/deltastreaminc/terraform-provider-deltastream/internal/util"
@@ -65,7 +63,6 @@ func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.Schema
 			"store": schema.StringAttribute{
 				Description: "Name of the Store",
 				Required:    true,
-				Validators:  util.IdentifierValidators,
 			},
 			"entity_path": schema.ListAttribute{
 				Description: "Path to entity",
@@ -89,17 +86,6 @@ func (d *EntityDataDataSource) Schema(ctx context.Context, req datasource.Schema
 	}
 }
 
-const printEntityStatement = `PRINT ENTITY
-	{{ if ne (len .EntityPath) 0 }}
-	{{- range $index, $element := .EntityPath }}
-        {{- if $index }}.{{ end }}
-    	{{- $element }}
-    {{- end }}
-	{{- end }}
-	IN STORE {{ .StoreName }}
-	{{ if .FromBeginning }}WITH ( 'from_beginning' ){{ end }};
-`
-
 func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	entityData := EntityDataDataSourceData{}
 	// Read Terraform plan data into the model
@@ -120,16 +106,15 @@ func (d *EntityDataDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		resp.Diagnostics.Append(entityData.EntityPath.ElementsAs(ctx, &entityPath, false)...)
 	}
 
-	b := bytes.NewBuffer(nil)
-	if err := template.Must(template.New("").Parse(printEntityStatement)).Execute(b, map[string]any{
+	dsql, err := util.ExecTemplate(printEntityTmpl, map[string]any{
 		"StoreName":  entityData.Store.ValueString(),
 		"EntityPath": entityPath,
-	}); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to print entities", err)
+	})
+	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
 		return
 	}
-
-	rows, err := conn.QueryContext(ctx, b.String())
+	rows, err := conn.QueryContext(ctx, dsql)
 	if err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to print store entity", err)
 		return

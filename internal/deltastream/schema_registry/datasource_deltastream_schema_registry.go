@@ -5,6 +5,7 @@ package schemaregistry
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -54,10 +55,6 @@ func (d *SchemaRegistryDataSource) Schema(ctx context.Context, req datasource.Sc
 				Description: "Type of the schema registry",
 				Computed:    true,
 			},
-			// "access_region": schema.StringAttribute{
-			// 	Description: "Specifies the region of the schema registry",
-			// 	Computed:    true,
-			// },
 			"state": schema.StringAttribute{
 				Description: "State of the schema registry",
 				Computed:    true,
@@ -97,42 +94,37 @@ func (d *SchemaRegistryDataSource) Read(ctx context.Context, req datasource.Read
 	}
 	defer conn.Close()
 
-	rows, err := conn.QueryContext(ctx, `LIST SCHEMA_REGISTRIES;`)
+	dsql, err := util.ExecTemplate(lookupSchemaRegistryTmpl, map[string]any{
+		"Name": sr.Name.ValueString(),
+	})
 	if err != nil {
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", err)
+		return
+	}
+	row := conn.QueryRowContext(ctx, dsql)
+	if err = row.Err(); err != nil {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to list schema registry", err)
 		return
 	}
-	defer rows.Close()
 
-	found := false
-	for rows.Next() {
-		var discard any
-		var name string
-		// var accessRegion string
-		var kind string
-		var state string
-		var owner string
-		var createdAt time.Time
-		var updatedAt time.Time
-		if err := rows.Scan(&name, &kind, &state, &discard, &owner, &createdAt, &updatedAt); err != nil {
-			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read schema registry", err)
+	var kind string
+	var state string
+	var owner string
+	var createdAt time.Time
+	var updatedAt time.Time
+	if err := row.Scan(&kind, &state, &owner, &createdAt, &updatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			resp.Diagnostics.AddError("error loading schema registry", "schema registry not found")
 			return
 		}
-		if name == sr.Name.ValueString() {
-			found = true
-			sr.Type = types.StringValue(kind)
-			sr.State = types.StringValue(state)
-			sr.Owner = types.StringValue(owner)
-			sr.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			sr.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-			break
-		}
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to read schema registry", err)
 	}
 
-	if !found {
-		resp.Diagnostics.AddError("error loading schema registry", "schema registry not found")
-		return
-	}
+	sr.Type = types.StringValue(kind)
+	sr.State = types.StringValue(state)
+	sr.Owner = types.StringValue(owner)
+	sr.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	sr.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &sr)...)
 }

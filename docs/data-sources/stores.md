@@ -29,7 +29,6 @@ data "deltastream_stores" "all_stores" {
 
 Read-Only:
 
-- `access_region` (String) Specifies the region of the Store.
 - `created_at` (String) Creation date of the Store
 - `name` (String) Name of the Store
 - `owner` (String) Owning role of the Store

@@ -28,7 +28,6 @@ data "deltastream_store" "example" {
 ### Optional
 
 - `confluent_kafka` (Attributes) Confluent Kafka specific configuration (see [below for nested schema](#nestedatt--confluent_kafka))
-- `databricks` (Attributes) Databricks specific configuration (see [below for nested schema](#nestedatt--databricks))
 - `kafka` (Attributes) Kafka specific configuration (see [below for nested schema](#nestedatt--kafka))
 - `kinesis` (Attributes) Kinesis specific configuration (see [below for nested schema](#nestedatt--kinesis))
 - `postgres` (Attributes) Postgres specific configuration (see [below for nested schema](#nestedatt--postgres))
@@ -36,7 +35,6 @@ data "deltastream_store" "example" {
 
 ### Read-Only
 
-- `access_region` (String) Specifies the region of the Store. In order to improve latency and reduce data transfer costs, the region should be the same cloud and region that the physical Store is running in.
 - `created_at` (String) Creation date of the Store
 - `owner` (String) Owning role of the Store
 - `state` (String) State of the Store
@@ -50,17 +48,6 @@ Read-Only:
 
 - `schema_registry_name` (String) Name of the schema registry
 - `uris` (String) List of host:port URIs to connect to the store
-
-
-<a id="nestedatt--databricks"></a>
-### Nested Schema for `databricks`
-
-Read-Only:
-
-- `cloud_region` (String) The region where the S3 bucket is located
-- `cloud_s3_bucket` (String) The name of the S3 bucket where the data will be stored
-- `uris` (String) List of host:port URIs to connect to the store
-- `warehouse_id` (String) The identifier for a Databricks SQL Warehouse belonging to a Databricks workspace. This Warehouse will be used to create and query Tables in Databricks
 
 
 <a id="nestedatt--kafka"></a>
