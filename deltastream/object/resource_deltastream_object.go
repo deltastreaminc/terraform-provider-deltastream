@@ -209,7 +209,7 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 		return
 	}
 
-	if !util.ArrayContains([]string{kind}, []string{"CREATE_STREAM", "CREATE_CHANGELOG"}) {
+	if !util.ArrayContains([]string{kind}, []string{"CREATE_STREAM", "CREATE_CHANGELOG", "CREATE_TABLE"}) {
 		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "planning error", fmt.Errorf("invalid relation type: %s", kind))
 		return
 	}
