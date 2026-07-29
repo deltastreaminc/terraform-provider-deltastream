@@ -247,8 +247,7 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create object", err)
 			return
 		}
-		// DDL executed successfully but returned no result rows (e.g. stream on existing topic);
-		// derive the FQN from the statement plan.
+		// The DDL executed successfully but returned no result rows; derive the FQN from the statement plan.
 		object.FQN = types.StringValue(fmt.Sprintf("%q.%q.%q", util.EscapeIdentifier(statementPlan.Ddl.DbName), util.EscapeIdentifier(statementPlan.Ddl.SchemaName), util.EscapeIdentifier(statementPlan.Ddl.Name)))
 	} else {
 		var pathArr []string
