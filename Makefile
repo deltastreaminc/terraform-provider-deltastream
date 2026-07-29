@@ -11,5 +11,6 @@ doc:
 
 .PHONY: testacc
 testacc:
-	DELTASTREAM_SESSION_ID=RANDOM TF_LOG=info TF_ACC=1  DELTASTREAM_CRED_FILE=$(PWD)/test-env.yaml go test ./... -v $(TESTARGS) -timeout 120m
+	aws secretsmanager get-secret-value --secret-id deltastream/terraform-provider-deltastream/git-action-secrets --region us-east-2 --query SecretString --output text > "$(PWD)/test-env2.yaml"
+	DELTASTREAM_SESSION_ID=RANDOM TF_LOG=info TF_ACC=1  DELTASTREAM_CRED_FILE=$(PWD)/test-env2.yaml go test ./... -v $(TESTARGS) -timeout 120m
 
