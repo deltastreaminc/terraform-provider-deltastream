@@ -11,6 +11,6 @@ doc:
 
 .PHONY: testacc
 testacc:
-	cat "test-env.yaml" | base64 -d > "test-env-decoded.yaml"
+	cat "test-env.yaml" | tr -d '[:space:]' | base64 -d > "test-env-decoded.yaml"
 	DELTASTREAM_SESSION_ID=RANDOM TF_LOG=info TF_ACC=1  DELTASTREAM_CRED_FILE=test-env-decoded.yaml go test ./... -v $(TESTARGS) -timeout 120m
 
