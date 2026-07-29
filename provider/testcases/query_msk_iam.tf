@@ -35,7 +35,7 @@ resource "deltastream_object" "pageviews" {
   namespace = "public"
   store     = deltastream_store.kafka_with_iam.name
   sql       = <<EOF
-    CREATE STREAM "Query_msk_iam_pageviews_${random_id.suffix.hex}-东西" (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
+    CREATE STREAM "Query_msk_iam_pageviews_${random_id.suffix.hex}-东西" (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
   EOF
 }
 
