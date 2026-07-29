@@ -255,6 +255,9 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
 		object, err = d.updateComputed(ctx, conn, object)
 		if err != nil {
+			if err == sql.ErrNoRows {
+				return retry.RetryableError(fmt.Errorf("object not yet visible"))
+			}
 			return err
 		}
 
@@ -277,6 +280,8 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 				"error": derr.Error(),
 			})
 		}
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create object", err)
+		return
 	}
 
 	tflog.Info(ctx, "Object created", map[string]any{"name": object.FQN.ValueString()})
@@ -311,7 +316,7 @@ func (d *ObjectResource) updateComputed(ctx context.Context, conn *sql.Conn, obj
 	object.Type = types.StringValue(kind)
 	object.State = types.StringValue(state)
 	object.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-	object.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	object.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 	return object, nil
 }
 
