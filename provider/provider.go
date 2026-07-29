@@ -166,7 +166,7 @@ func (p *DeltaStreamProvider) Configure(ctx context.Context, req provider.Config
 		resp.Diagnostics.AddAttributeError(path.Root("organization"), "Organization ID not specified", "Organization ID must be specified in the configuration or via the DELTASTREAM_ORGANIZATION environment variable")
 	}
 	if cfg.Role == "" {
-		resp.Diagnostics.AddAttributeWarning(path.Root("role"), "Role not specified", "Role not specified in the configuration or via the DELTASTREAM_ORGANIZATION environment variable, defaulting to sysadmin")
+		resp.Diagnostics.AddAttributeWarning(path.Root("role"), "Role not specified", "Role not specified in the configuration or via the DELTASTREAM_ROLE environment variable, defaulting to sysadmin")
 		cfg.Role = "sysadmin"
 	}
 	if apiKey == "" {
