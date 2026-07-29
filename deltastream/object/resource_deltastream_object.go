@@ -247,8 +247,30 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create object", err)
 			return
 		}
-		// The DDL executed successfully but returned no result rows; derive the FQN from the statement plan.
-		object.FQN = types.StringValue(fmt.Sprintf("%q.%q.%q", util.EscapeIdentifier(statementPlan.Ddl.DbName), util.EscapeIdentifier(statementPlan.Ddl.SchemaName), util.EscapeIdentifier(statementPlan.Ddl.Name)))
+		// DDL on an existing topic executes successfully but returns no result rows.
+		// Look up the newly created object by name to get the server-assigned FQN.
+		nsql, nerr := util.ExecTemplate(lookupObjectByNameTmpl, map[string]any{
+			"DatabaseName": statementPlan.Ddl.DbName,
+			"SchemaName":   statementPlan.Ddl.SchemaName,
+			"Name":         statementPlan.Ddl.Name,
+		})
+		if nerr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to generate SQL", nerr)
+			return
+		}
+		var objName, kind, fqn, owner, state string
+		var createdAt, updatedAt time.Time
+		if nerr = conn.QueryRowContext(ctx, nsql).Scan(&objName, &kind, &fqn, &owner, &state, &createdAt, &updatedAt); nerr != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to find created object", nerr)
+			return
+		}
+		object.FQN = types.StringValue(fqn)
+		object.Name = types.StringValue(objName)
+		object.Type = types.StringValue(kind)
+		object.Owner = types.StringValue(owner)
+		object.State = types.StringValue(state)
+		object.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+		object.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 	} else {
 		var pathArr []string
 		if err := json.Unmarshal([]byte(artifactDDL.Path), &pathArr); err != nil {
