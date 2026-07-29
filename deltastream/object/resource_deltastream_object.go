@@ -255,9 +255,6 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
 		object, err = d.updateComputed(ctx, conn, object)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return retry.RetryableError(fmt.Errorf("object not yet visible"))
-			}
 			return err
 		}
 
