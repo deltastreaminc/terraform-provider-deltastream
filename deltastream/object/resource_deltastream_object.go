@@ -243,15 +243,20 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 	artifactDDL := artifactDDL{}
 	row = conn.QueryRowContext(ctx, object.Sql.ValueString())
 	if err := row.Scan(&artifactDDL.Type, &artifactDDL.Name, &artifactDDL.Command, &artifactDDL.Summary, &artifactDDL.Path); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create object", err)
-		return
+		if !errors.Is(err, sql.ErrNoRows) {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create object", err)
+			return
+		}
+		// The DDL executed successfully but returned no result rows; derive the FQN from the statement plan.
+		object.FQN = types.StringValue(fmt.Sprintf("%q.%q.%q", util.EscapeIdentifier(statementPlan.Ddl.DbName), util.EscapeIdentifier(statementPlan.Ddl.SchemaName), util.EscapeIdentifier(statementPlan.Ddl.Name)))
+	} else {
+		var pathArr []string
+		if err := json.Unmarshal([]byte(artifactDDL.Path), &pathArr); err != nil {
+			resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to parse object path", err)
+			return
+		}
+		object.FQN = types.StringValue(fmt.Sprintf("%q.%q.%q", util.EscapeIdentifier(pathArr[0]), util.EscapeIdentifier(pathArr[1]), util.EscapeIdentifier(pathArr[2])))
 	}
-	var pathArr []string
-	if err := json.Unmarshal([]byte(artifactDDL.Path), &pathArr); err != nil {
-		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to parse object path", err)
-		return
-	}
-	object.FQN = types.StringValue(fmt.Sprintf("%q.%q.%q", util.EscapeIdentifier(pathArr[0]), util.EscapeIdentifier(pathArr[1]), util.EscapeIdentifier(pathArr[2])))
 	if err := retry.Do(ctx, retry.WithMaxDuration(time.Minute*5, retry.NewExponential(time.Second)), func(ctx context.Context) (err error) {
 		object, err = d.updateComputed(ctx, conn, object)
 		if err != nil {
@@ -277,6 +282,8 @@ func (d *ObjectResource) Create(ctx context.Context, req resource.CreateRequest,
 				"error": derr.Error(),
 			})
 		}
+		resp.Diagnostics = util.LogError(ctx, resp.Diagnostics, "failed to create object", err)
+		return
 	}
 
 	tflog.Info(ctx, "Object created", map[string]any{"name": object.FQN.ValueString()})
@@ -311,7 +318,7 @@ func (d *ObjectResource) updateComputed(ctx context.Context, conn *sql.Conn, obj
 	object.Type = types.StringValue(kind)
 	object.State = types.StringValue(state)
 	object.CreatedAt = types.StringValue(createdAt.Format(time.RFC3339))
-	object.UpdatedAt = types.StringValue(createdAt.Format(time.RFC3339))
+	object.UpdatedAt = types.StringValue(updatedAt.Format(time.RFC3339))
 	return object, nil
 }
 
