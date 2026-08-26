@@ -74,7 +74,7 @@ func TestAccDeltaStreamStore(t *testing.T) {
 						}
 					}
 
-					expectedTopics := []string{"ds_pageviews"}
+					expectedTopics := []string{"pageviews"}
 					if !util.ArrayContains(expectedTopics, topicNames) {
 						return fmt.Errorf("Topic names %v not found in list: %v", expectedTopics, topicNames)
 					}
