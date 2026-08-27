@@ -39,7 +39,7 @@ resource "deltastream_object" "pageviews" {
   namespace = "public"
   store = deltastream_store.kafka_with_iam.name
   sql = <<EOF
-    CREATE STREAM object_pageviews_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
+    CREATE STREAM object_pageviews_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
   EOF
 }
 
@@ -48,7 +48,7 @@ resource "deltastream_object" "pageviews_5" {
   namespace = "public"
   store = deltastream_store.kafka_with_iam.name
   sql = <<EOF
-    CREATE STREAM object_pageviews_5_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='ds_pageviews', 'value.format'='json');
+    CREATE STREAM object_pageviews_5_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR) WITH ('topic'='pageviews', 'value.format'='json');
   EOF
 }
 
@@ -57,7 +57,7 @@ resource "deltastream_object" "user_last_page" {
   namespace = "public"
   store = deltastream_store.kafka_with_iam.name
   sql = <<EOF
-    CREATE CHANGELOG object_user_last_page_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR, PRIMARY KEY(userid)) WITH ('topic'='ds_pageviews', 'value.format'='json');
+    CREATE CHANGELOG object_user_last_page_${random_id.suffix.hex} (viewtime BIGINT, userid VARCHAR, pageid VARCHAR, PRIMARY KEY(userid)) WITH ('topic'='pageviews', 'value.format'='json');
   EOF
 }
 
